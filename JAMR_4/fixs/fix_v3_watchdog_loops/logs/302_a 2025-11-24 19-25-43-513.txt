@@ -1,0 +1,279 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1188
+load:0x403c8700,len:0x4
+load:0x403c8704,len:0xbf0
+load:0x403cb700,len:0x30e4
+entry 0x403c88ac
+🔍 Verificando estado del sistema...
+🛡️  Inicializando Watchdog Timer...
+✅ Watchdog configurado: timeout=120s
+🚀 SISTEMA DE MONITOREO AMBIENTAL ELATHIA
+==========================================
+Iniciando sistema...
+🔖 Firmware activo: v4.1.1-JAMR4-TIMEOUT
+⏱️  Cronómetro iniciado - midiendo tiempo de funcionamiento
+🛰️  CONFIGURACIÓN DE GPS:
+   GPS SIM (módem): ✅ HABILITADO
+[3049ms] ℹ️  TIME_INFO: 🕐 Iniciando configuración del sistema de tiempo
+[3050ms] 🔍 TIME_DEBUG: ⚡ Energía activada para RTC
+[5059ms] 🔍 TIME_DEBUG: 🔄 RTC - Intento de inicialización 1 de 3
+[5060ms] ℹ️  TIME_INFO: ✅ RTC inicializado exitosamente en intento 1
+[5171ms] 🔍 TIME_DEBUG: 🔋 RTC - Batería en buen estado
+[5171ms] 🔍 TIME_DEBUG: 🔄 RTC - Intento de lectura 1 de 3
+[5172ms] ℹ️  TIME_INFO: ✅ Tiempo leído exitosamente en intento 1
+[5182ms] ℹ️  TIME_INFO: 📅 Fecha y hora configuradas:
+[5183ms] ℹ️  TIME_INFO:    2025/11/24 19:25:47
+[5193ms] ℹ️  TIME_INFO: 📊 Estado del RTC:
+[5193ms] ℹ️  TIME_INFO:    Inicializado: ✅ SI
+[5203ms] ℹ️  TIME_INFO:    Batería: ✅ OK
+[5203ms] ℹ️  TIME_INFO:    Errores de init: 0
+[5214ms] ℹ️  TIME_INFO:    Errores de lectura: 0
+[5214ms] ℹ️  TIME_INFO: ✅ Sistema de tiempo configurado exitosamente
+✅ Sistema de tiempo configurado
+🛰️  Configurando GPS del módem SIM...
+[5224ms] ℹ️  INFO: 🛰️  Configurando GPS integrado del módem
+[5235ms] ℹ️  INFO: 🛰️  Iniciando módulo GPS integrado
+[5345ms] ℹ️  INFO: ✅ Módem iniciado correctamente
+[9740ms] ℹ️  INFO: ✅ GPS habilitado correctamente
+[9741ms] ℹ️  INFO: 🛰️  Obteniendo coordenadas GPS del módem SIM...
+[20994ms] ℹ️  INFO: ✅ Coordenadas GPS obtenidas en 1 intentos
+[20995ms] ℹ️  INFO: ✅ Coordenadas GPS obtenidas y almacenadas
+[21005ms] ℹ️  INFO: 🛰️  Deteniendo módulo GPS integrado
+[26216ms] ℹ️  INFO: ✅ GPS deshabilitado correctamente
+[26217ms] ℹ️  INFO: 🔋 GPS detenido para ahorrar energía
+[26217ms] ℹ️  INFO: 🔌 Apagando módem para máximo ahorro de energía
+[31227ms] ℹ️  INFO: ✅ Funciones del módem desactivadas
+[36427ms] ℹ️  INFO: 🔋 Módem apagado completamente - máximo ahorro de energía
+✅ GPS del módem SIM configurado
+🌱 Iniciando lectura de sensores...
+----REQUEST 485 Sonda Seed
+12,04,00,00,00,03,B2,A8, 
+----RESPONSE 485 Sonda Seed
+12,04,06,08,EF,00,00,00,00,6D,3C,00, 
+✅ Sonda Seed - Comunicación exitosa (11 bytes)
+⚠️ ADVERTENCIA: Sonda Seed - Temperatura sospechosa
+✅ Sonda Seed - Datos procesados correctamente
+✅ AHT20 - Lectura exitosa
+Sensor AHT20
+2794
+5235
+-----------
+✅ Batería - Lectura exitosa
+---------Bateria----------
+394
+-------------------
+=== RESUMEN DE ESTADO ===
+Sonda: ✅ OK
+AHT: ✅ OK
+Batería: ✅ OK
+========================
+📊 DATOS DE SENSORES LEÍDOS:
+=============================
+🌱 DATOS DE SUELO:
+   Temperatura: 22.9°C
+   Humedad: 0.0%
+   Conductividad: 0 μS/cm
+   pH: 0.00
+🌡️  DATOS AMBIENTALES:
+   Temperatura: 27.9°C
+   Humedad: 52.3%
+🔋 DATOS DEL SISTEMA:
+   Voltaje batería: 3.64V
+   Calidad señal: 0 dBm
+🛰️  DATOS GPS:
+   Latitud: 19.885099°
+   Longitud: -103.600372°
+   Altitud: 1382.8m
+=============================
+✅ Lectura de sensores completada
+📡 Iniciando configuración del módem LTE/GSM...
+[38862ms] ℹ️  INFO: 🚀 Iniciando configuración del módem LTE/GSM
+[38873ms] ℹ️  INFO: 📱 Iniciando comunicación GSM
+[40133ms] 🔍 DEBUG: 🔄 Esperando respuesta del módem...
+[41373ms] 🔍 DEBUG: 🔄 Esperando respuesta del módem...
+[42613ms] 🔍 DEBUG: 🔄 Esperando respuesta del módem...
+[43853ms] 🔍 DEBUG: 🔄 Esperando respuesta del módem...
+[45093ms] 🔍 DEBUG: 🔄 Esperando respuesta del módem...
+[45093ms] 🔍 DEBUG: 🔌 Pulsando pin PWRKEY del módem
+[49293ms] 🔍 DEBUG: ✅ Pulsado PWRKEY completado
+[49293ms] 🔍 DEBUG: 📤 Enviando comando AT: +CPIN?
+[49294ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 15000ms
+[64304ms] ⚠️  WARN: ⚠️  Comando AT falló: +CPIN? (esperaba: READY)
+[64304ms] ℹ️  INFO: 🔄 Reintentando inicio del módem
+[64735ms] ℹ️  INFO: ✅ Comunicación GSM establecida
+[64735ms] ℹ️  INFO: 📡 Encendiendo RF del módem
+[64736ms] 🔍 DEBUG: 📤 Enviando comando AT: +CFUN=1
+[64746ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 10000ms
+AT+CFUN=1
+OK
+[74746ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CFUN=1
+[74746ms] ℹ️  INFO: ✅ RF del módem activada correctamente
+[76746ms] 🔍 DEBUG: 📤 Enviando comando AT: +CFUN?
+[76746ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 5000ms
+AT+CFUN?
++CFUN: 1
+
+OK
+[81747ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CFUN?
+[81747ms] ℹ️  INFO: ✅ RF verificada - módem completamente funcional
+[81748ms] ℹ️  INFO: 📱 Obteniendo información de la tarjeta SIM
+[89067ms] ℹ️  INFO: 📱 ICCID: 89883030000096466369
+[89067ms] ℹ️  INFO: 📶 Calidad de señal: 13
+[89068ms] ⚠️  WARN: ⚠️  Señal regular
+[89078ms] ℹ️  INFO: 💾 Iniciando sistema de archivos LittleFS
+[89078ms] 🔍 DEBUG: 🔄 Intentando montar LittleFS (intento 1 de 5)
+[89093ms] ℹ️  INFO: ✅ LittleFS montado correctamente
+[89113ms] ℹ️  INFO: 💾 Espacio total: 1441792 bytes
+[89113ms] ℹ️  INFO: 💾 Espacio usado: 16384 bytes
+[89113ms] ℹ️  INFO: 💾 Espacio libre: 1425408 bytes
+[89123ms] ℹ️  INFO: 📦 Preparando datos para envío
+📱 ICCID: 89883030000096466369
+📶 Calidad de señal: 13
+[89133ms] 🔍 DEBUG: 🔄 Convirtiendo ICCID a formato hexadecimal
+------ICCID hex------
+0x38 0x39 0x38 0x38 0x33 0x30 0x33 0x30 0x30 0x30 0x30 0x30 0x39 0x36 0x34 0x36 0x36 0x33 0x36 0x39 
+� Preparando datos de sensores
+[89155ms] 🔍 DEBUG: 🔄 Preparando datos de sensores
+sizeof(sensordata_type) = 43
+STRUCT_SIZE usado = 46
+⚠️  ADVERTENCIA: sizeof discrepancia - usando 46 bytes fijos
+------Sensor data hex------
+0x08 0xEF 0x00 0x00 0x00 0x00 0x00 0x00 0x14 0x73 0x0A 0xEA 0x01 0x8A 0x07 0xE9 0x0B 0x18 0x13 0x19 0x2F 0x0D 0xAF 0x14 0x9F 0x41 0x64 0x33 0xCF 0xC2 0x89 0xD9 0xAC 0x44 0x05 0x01 0x00 0x01 0x00 0x97 0x04 0x01 0x01 0x00 0x00 0x00 
+Tamaño estructura: 46
+[89188ms] 🔍 DEBUG: 🔄 Construyendo cadena de envío
+------Cadena envío hex------
+0x38 0x39 0x38 0x38 0x33 0x30 0x33 0x30 0x30 0x30 0x30 0x30 0x39 0x36 0x34 0x36 0x36 0x33 0x36 0x39 0x08 0xEF 0x00 0x00 0x00 0x00 0x00 0x00 0x14 0x73 0x0A 0xEA 0x01 0x8A 0x07 0xE9 0x0B 0x18 0x13 0x19 0x2F 0x0D 0xAF 0x14 0x9F 0x41 0x64 0x33 0xCF 0xC2 0x89 0xD9 0xAC 0x44 0x05 0x01 0x00 0x01 0x00 0x97 0x04 0x01 0x01 0x00 0x00 0x00 0xF6 0x0E 
+: 
+[89232ms] ℹ️  INFO: 🔐 Encriptando datos con AES
+🔐 [CRYPTO] [encryptChar] [INFO] 89232ms: Iniciando encriptación de array de caracteres
+🔐 [CRYPTO] [encryptChar] [INFO] 89243ms: Encriptación exitosa en 11ms
+[89253ms] ℹ️  INFO: ✅ Datos preparados: 108 bytes encriptados
+[89253ms] ℹ️  INFO: 📦 Datos preparados y encriptados: 108 bytes
+[89263ms] ℹ️  INFO: 💾 Guardando dato en buffer local
+[89357ms] ℹ️  INFO: ✅ Dato guardado en buffer. Total en buffer: 3 líneas
+[89357ms] ℹ️  INFO: 🌐 Iniciando conexión LTE
+[89367ms] 🔍 DEBUG: 📤 Enviando comando AT: +CNMP=38
+[89367ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CNMP=38
+OK
+[95377ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CNMP=38
+[95378ms] 🔍 DEBUG: 📤 Enviando comando AT: +CMNB=1
+[95378ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CMNB=1
+OK
+[101388ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CMNB=1
+[101388ms] 🔍 DEBUG: 📤 Enviando comando AT: +CBANDCFG="CAT-M",1,2,3,4,5,8,12,13,14,18,19,20,25,26,27,28,66,85
+[101399ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CBANDCFG="CAT-M",1,2,3,4,5,8,12,13,14,18,19,20,25,26,27,28,66,85
+OK
+[107399ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CBANDCFG="CAT-M",1,2,3,4,5,8,12,13,14,18,19,20,25,26,27,28,66,85
+[107400ms] 🔍 DEBUG: 📤 Enviando comando AT: +CBANDCFG="NB-IOT",2,3,5,8,20,28
+[107410ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CBANDCFG="NB-IOT",2,3,5,8,20,28
+OK
+[113420ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CBANDCFG="NB-IOT",2,3,5,8,20,28
+[113420ms] 🔍 DEBUG: 📤 Enviando comando AT: +CBANDCFG?
+[113431ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CBANDCFG?
++CBANDCFG: "CAT-M",1,2,3,4,5,8,12,13,14,18,19,20,25,26,27,28,66,85
++CBANDCFG: "NB-IOT",2,3,5,8,20,28
+
+OK
+[119431ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CBANDCFG?
+[122431ms] 🔍 DEBUG: 📤 Enviando comando AT: +CGDCONT=1,"IP","em"
+[122431ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CGDCONT=1,"IP","em"
+OK
+[128442ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CGDCONT=1,"IP","em"
+[128442ms] 🔍 DEBUG: 📤 Enviando comando AT: +CNACT=0,1
+[128443ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 5000ms
+AT+CNACT=0,1
+OK
+
++APP PDP: 0,ACTIVE
+[133453ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CNACT=0,1
+[133724ms] 🔍 DEBUG: 📶 Calidad de señal: 15
+[133725ms] 🔍 DEBUG: 📤 Enviando comando AT: +CNACT?
+[133725ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CNACT?
++CNACT: 0,1,"100.116.56.23"
++CNACT: 1,0,"0.0.0.0"
++CNACT: 2,0,"0.0.0.0"
++CNACT: 3,0,"0.0.0.0"
+
+OK
+[139735ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CNACT?
+[140036ms] ℹ️  INFO: ✅ Conectado a la red LTE
+[140036ms] 🔍 DEBUG: 📤 Enviando comando AT: +CPSI?
+[140037ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CPSI?
++CPSI: LTE CAT-M1,Online,334-050,0x139D,36032543,424,EUTRAN-BAND4,2225,4,4,-13,-113,-87,14
+
+OK
+[146047ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CPSI?
+[146048ms] ℹ️  INFO: ✅ Conexión LTE establecida, enviando datos
+[146048ms] ℹ️  INFO: 📤 Iniciando envío de datos del buffer
+[146060ms] ℹ️  INFO: 🔌 Abriendo conexión TCP con validación de estado
+[146070ms] 🔍 DEBUG: 🔍 Verificando estado del socket TCP
+[149081ms] ⚠️  WARN: ⚠️  Respuesta incompleta al consultar +CASTATE?, asumiendo socket inactivo
+[149081ms] 🔍 DEBUG: 🔍 Socket TCP detectado como inactivo
+[149092ms] ℹ️  INFO: 🔌 Abriendo conexión TCP a d01.elathia.ai:11235
+[149092ms] 🔍 DEBUG: 🔄 Intento 1 de 5
+[149102ms] 🔍 DEBUG: 📤 Enviando comando AT: +CAOPEN=0,0,"TCP","d01.elathia.ai",11235
+[149113ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+AT+CAOPEN=0,0,"TCP","d01.elathia.ai",11235
++CAOPEN: 0,0
+
+OK
+[155113ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CAOPEN=0,0,"TCP","d01.elathia.ai",11235
+[155113ms] ℹ️  INFO: ✅ Socket TCP abierto exitosamente
+[155133ms] 🔍 DEBUG: 📤 Enviando 88 bytes por TCP
+[155174ms] 🔍 DEBUG: ✅ Datos TCP enviados exitosamente
+[155174ms] ℹ️  INFO: ✅ Enviado: kwXLrmEe5sTdYrBMqL+nvUWkzmboNSH72hnkgSw8vlJBikGK2x...
+[155186ms] 🔍 DEBUG: 📤 Enviando 88 bytes por TCP
+[155186ms] 🔍 DEBUG: 🧹 Limpiados 11 bytes del buffer serial
+[155228ms] 🔍 DEBUG: ✅ Datos TCP enviados exitosamente
+[155228ms] ℹ️  INFO: ✅ Enviado: kwXLrmEe5sTdYrBMqL+nvTEkpLpO6RyrjqSyHgS628BRUUmXSp...
+[155239ms] 🔍 DEBUG: 📤 Enviando 108 bytes por TCP
+[155239ms] 🔍 DEBUG: 🧹 Limpiados 11 bytes del buffer serial
+[155293ms] 🔍 DEBUG: ✅ Datos TCP enviados exitosamente
+[155293ms] ℹ️  INFO: ✅ Enviado: kwXLrmEe5sTdYrBMqL+nvZeosOlG80ncXJzYj0PClX8oILIvWg...
+[155306ms] 🔍 DEBUG: 🔌 Cerrando conexión TCP
+[155307ms] 🔍 DEBUG: 📤 Enviando comando AT: +CACLOSE=0
+[155307ms] 🔍 DEBUG: ⏱️  Usando timeout especificado: 6000ms
+[155317ms] 🔍 DEBUG: 🧹 Limpiados 11 bytes del buffer serial
+AT+CACLOSE=0
+OK
+[161317ms] 🔍 DEBUG: ✅ Comando AT exitoso: +CACLOSE=0
+[161317ms] 🔍 DEBUG: ✅ Conexión TCP cerrada
+[161334ms] ℹ️  INFO: 📊 Resumen de envío: 3 enviados, 0 fallidos
+[161334ms] ℹ️  INFO: 🧹 Limpiando buffer de datos enviados
+[161362ms] ℹ️  INFO: ✅ Buffer limpio. Datos pendientes: 0 líneas
+[161362ms] 🔍 DEBUG: 🔌 Pulsando pin PWRKEY del módem
+[165572ms] 🔍 DEBUG: ✅ Pulsado PWRKEY completado
+[165572ms] ℹ️  INFO: 🏁 Configuración del módem completada
+✅ Configuración del módem completada
+💤 Preparando sistema para modo deep sleep...
+⏱️  ESTADÍSTICAS DE TIEMPO DE FUNCIONAMIENTO:
+=============================================
+   Tiempo total: 165567 ms
+   Duración: 2 minutos y 45 segundos
+   Cronómetro estado: DETENIDO
+📊 ESTADÍSTICAS FINALES DEL SISTEMA:
+=== ESTADÍSTICAS DEL SISTEMA ===
+Módem inicializado: Sí
+GPS habilitado: No
+Calidad de señal: 13
+Fallos consecutivos: 0
+Último intento de conexión: 0ms
+Timeout adaptativo actual: 6000ms
+
+✅ Sistema preparado para deep sleep
+🌙 Entrando en modo deep sleep...
+⏰ Próximo despertar en 600 segundos
+Setup ESP32 to sleep for every 600 seconds
+Going to sleep now
