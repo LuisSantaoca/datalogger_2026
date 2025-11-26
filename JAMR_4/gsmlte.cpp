@@ -20,7 +20,7 @@ static unsigned long g_cycle_start_ms = 0;
 static bool g_cycle_budget_set = false;
 
 // FIX-8: Estado global de salud del módem en el ciclo actual
-static modem_health_state_t g_modem_health_state = MODEM_HEALTH_OK;
+modem_health_state_t g_modem_health_state = MODEM_HEALTH_OK;
 static uint8_t g_modem_timeouts_critical = 0; // cuenta timeouts en operaciones críticas (CNACT, CAOPEN, envío TCP)
 
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
