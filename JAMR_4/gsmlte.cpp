@@ -4,10 +4,47 @@
 #include <LittleFS.h>
 #include "cryptoaes.h"
 
+struct PdpContextInfo {
+  int cid = -1;
+  String ip;
+};
+
+static bool captureCNACTResponse(String& response, unsigned long timeoutMs);
+static bool extractActivePdpContext(const String& response, PdpContextInfo& ctx);
+static bool ensurePdpActive(uint32_t budgetMs);
+
+static const uint32_t PDP_VALIDATION_MIN_BUDGET_MS = 4000UL;
+static const uint32_t PDP_VALIDATION_MAX_SLICE_MS = 20000UL;
+
+static unsigned long g_cycle_start_ms = 0;
+static bool g_cycle_budget_set = false;
+
+// FIX-8: Estado global de salud del módem en el ciclo actual
+static modem_health_state_t g_modem_health_state = MODEM_HEALTH_OK;
+static uint8_t g_modem_timeouts_critical = 0; // cuenta timeouts en operaciones críticas (CNACT, CAOPEN, envío TCP)
+
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
+// Tabla de perfiles de operador. Ajustar según resultados de campo.
+static const OperatorProfile OP_PROFILES[] = {
+  { "DEFAULT_CATM", MODEM_NETWORK_MODE, CAT_M,  "em", 90000UL, 0 },
+  { "NB_IOT_FALLBACK", MODEM_NETWORK_MODE, NB_IOT, "em", 30000UL, 1 },
+};
+static const size_t OP_PROFILES_COUNT = sizeof(OP_PROFILES) / sizeof(OP_PROFILES[0]);
+
+static int8_t g_last_success_operator_id = -1;                 // -1 = ninguno
+static uint8_t g_operator_failures[OP_PROFILES_COUNT] = {0};
+static uint32_t g_lte_max_wait_ms = LTE_CONNECT_BUDGET_MS;     // límite dinámico por perfil
+
+static const char* LTE_PROFILE_FILE = "/lte_profile.cfg";
+static void loadPersistedOperatorId();
+static void persistOperatorId(int8_t id);
+
 static bool startLTE_multiOperator();
 static bool tryConnectOperator(const OperatorProfile& profile, uint32_t allowedMs, uint32_t& elapsedMs);
 static void buildOperatorOrder(uint8_t* order, size_t& count);
+#else
+static const size_t OP_PROFILES_COUNT = 0; // Evita warnings cuando el flag está apagado
+static uint32_t g_lte_max_wait_ms = 120000UL;
 #endif
 
 // =============================================================================
@@ -25,6 +62,122 @@ bool modemInitialized = false;
 bool gpsEnabled = false;
 unsigned long lastConnectionAttempt = 0;
 int consecutiveFailures = 0;
+static const char* FIX6_DEFAULT_CONTEXT = "contexto-desconocido";
+
+// =============================================================================
+// FIX-8: Helpers de salud del módem
+// =============================================================================
+
+static void modemHealthReset() {
+  g_modem_health_state = MODEM_HEALTH_OK;
+  g_modem_timeouts_critical = 0;
+}
+
+static void modemHealthRegisterTimeout(const char* contextTag) {
+  g_modem_timeouts_critical++;
+
+  if (g_modem_timeouts_critical == 1) {
+    logMessage(2, String("[FIX-8] Primer timeout crítico detectado en ") + contextTag);
+    g_modem_health_state = MODEM_HEALTH_TRYING;
+  } else if (g_modem_timeouts_critical >= 3 && g_modem_health_state != MODEM_HEALTH_FAILED) {
+    logMessage(1, String("[FIX-8] Múltiples timeouts críticos (") + g_modem_timeouts_critical + ") en " + contextTag + ", posible estado zombie");
+    g_modem_health_state = MODEM_HEALTH_ZOMBIE_DETECTED;
+  }
+}
+
+static void modemHealthMarkOk() {
+  if (g_modem_health_state == MODEM_HEALTH_TRYING || g_modem_health_state == MODEM_HEALTH_ZOMBIE_DETECTED) {
+    g_modem_health_state = MODEM_HEALTH_RECOVERED;
+    logMessage(2, "[FIX-8] Módem recuperado tras timeouts previos");
+  } else {
+    g_modem_health_state = MODEM_HEALTH_OK;
+  }
+  g_modem_timeouts_critical = 0;
+}
+
+static bool modemHealthShouldAbortCycle() {
+  if (g_modem_health_state == MODEM_HEALTH_ZOMBIE_DETECTED && g_modem_timeouts_critical >= 3) {
+    logMessage(1, "[FIX-8] Estado zombie confirmado: se marcará fallo de módem en este ciclo");
+    g_modem_health_state = MODEM_HEALTH_FAILED;
+    return true;
+  }
+  return false;
+}
+
+void resetCommunicationCycleBudget() {
+#if ENABLE_WDT_DEFENSIVE_LOOPS
+  esp_task_wdt_reset();
+#endif
+  g_cycle_start_ms = millis();
+  g_cycle_budget_set = true;
+}
+
+uint32_t remainingCommunicationCycleBudget() {
+  if (!g_cycle_budget_set) {
+    return COMM_CYCLE_BUDGET_MS;
+  }
+
+  unsigned long now = millis();
+  unsigned long elapsed = now - g_cycle_start_ms;
+  if (elapsed >= COMM_CYCLE_BUDGET_MS) {
+    return 0;
+  }
+  return COMM_CYCLE_BUDGET_MS - elapsed;
+}
+
+bool ensureCommunicationBudget(const char* contextTag) {
+  if (remainingCommunicationCycleBudget() > 0) {
+    return true;
+  }
+
+  const char* tag = (contextTag && contextTag[0] != '\0') ? contextTag : FIX6_DEFAULT_CONTEXT;
+  logMessage(1, String("[FIX-6] Presupuesto de ciclo agotado en ") + tag);
+  return false;
+}
+
+#if ENABLE_MULTI_OPERATOR_EFFICIENT
+static void loadPersistedOperatorId() {
+  if (!LittleFS.exists(LTE_PROFILE_FILE)) {
+    logMessage(3, "[FIX-7] Archivo de perfil LTE no existe, usando orden por defecto");
+    return;
+  }
+
+  File f = LittleFS.open(LTE_PROFILE_FILE, "r");
+  if (!f) {
+    logMessage(1, "[FIX-7] No se pudo abrir archivo de perfil LTE para lectura");
+    return;
+  }
+
+  String line = f.readStringUntil('\n');
+  f.close();
+  line.trim();
+
+  if (line.length() == 0) {
+    logMessage(1, "[FIX-7] Archivo de perfil LTE vacío");
+    return;
+  }
+
+  int val = line.toInt();
+  if (val >= 0 && val < static_cast<int>(OP_PROFILES_COUNT)) {
+    g_last_success_operator_id = static_cast<int8_t>(val);
+    logMessage(2, "[FIX-7] Perfil LTE persistente cargado: id=" + String(val));
+  } else {
+    logMessage(1, "[FIX-7] Valor fuera de rango en archivo de perfil LTE: " + line);
+  }
+}
+
+static void persistOperatorId(int8_t id) {
+  File f = LittleFS.open(LTE_PROFILE_FILE, "w");
+  if (!f) {
+    logMessage(1, "[FIX-7] No se pudo abrir archivo de perfil LTE para escritura");
+    return;
+  }
+
+  f.println(id);
+  f.close();
+  logMessage(2, "[FIX-7] Perfil LTE persistente actualizado a id=" + String(id));
+}
+#endif
 
 // Variables para almacenamiento de datos
 String iccidsim0 = "";
@@ -51,22 +204,6 @@ int gps_day = 0;
 int gps_hour = 0;
 int gps_minute = 0;
 int gps_second = 0;
-
-#if ENABLE_MULTI_OPERATOR_EFFICIENT
-// Tabla de perfiles de operador. Ajustar según resultados de campo.
-static const OperatorProfile OP_PROFILES[] = {
-  { "DEFAULT_CATM", MODEM_NETWORK_MODE, CAT_M,  "em", 90000UL, 0 },
-  { "NB_IOT_FALLBACK", MODEM_NETWORK_MODE, NB_IOT, "em", 30000UL, 1 },
-};
-static const size_t OP_PROFILES_COUNT = sizeof(OP_PROFILES) / sizeof(OP_PROFILES[0]);
-
-static int8_t g_last_success_operator_id = -1;                 // -1 = ninguno
-static uint8_t g_operator_failures[OP_PROFILES_COUNT] = {0};
-static uint32_t g_lte_max_wait_ms = LTE_CONNECT_BUDGET_MS;     // límite dinámico por perfil
-#else
-static const size_t OP_PROFILES_COUNT = 0; // Evita warnings cuando el flag está apagado
-static uint32_t g_lte_max_wait_ms = 120000UL;
-#endif
 
 /**
  * Inicializa la configuración por defecto del módem
@@ -201,6 +338,9 @@ String getSystemStats() {
 void setupModem(sensordata_type* data) {
   logMessage(2, "🚀 Iniciando configuración del módem LTE/GSM");
 
+  // FIX-8: reiniciar estado de salud del módem al inicio de cada ciclo
+  modemHealthReset();
+
   // Inicializar configuración por defecto
   initModemConfig();
 
@@ -221,12 +361,19 @@ void setupModem(sensordata_type* data) {
   }
   esp_task_wdt_reset(); // 🆕 JAMR_3 FIX-001: Feed watchdog después de LittleFS
 
+#if ENABLE_MULTI_OPERATOR_EFFICIENT
+  loadPersistedOperatorId();
+#endif
+
   // Preparar y guardar datos
   String cadenaEncriptada = dataSend(data);
   logMessage(2, "📦 Datos preparados y encriptados: " + String(cadenaEncriptada.length()) + " bytes");
   guardarDato(cadenaEncriptada);
 
   // Intentar conexión LTE y envío
+  resetCommunicationCycleBudget();
+  logMessage(2, String("[FIX-6] Presupuesto global de ciclo: ") + COMM_CYCLE_BUDGET_MS + "ms");
+
   bool lteOk = false;
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
   lteOk = startLTE_multiOperator();
@@ -243,6 +390,7 @@ void setupModem(sensordata_type* data) {
     limpiarEnviados();
     esp_task_wdt_reset(); // 🆕 JAMR_3 FIX-001: Feed watchdog después de enviar datos
     consecutiveFailures = 0;  // Resetear contador de fallos
+    modemHealthMarkOk();      // 🆕 FIX-8: ciclo con módem sano
   } else {
     consecutiveFailures++;
     logMessage(1, "⚠️  Fallo en conexión LTE (intento " + String(consecutiveFailures) + ")");
@@ -288,11 +436,153 @@ void modemRestart() {
   logMessage(2, "✅ Reinicio del módem completado");
 }
 
+static bool captureCNACTResponse(String& response, unsigned long timeoutMs) {
+  flushPortSerial();
+  modem.sendAT("+CNACT?");
+
+  response = "";
+  unsigned long start = millis();
+  unsigned long lastFeed = millis();
+  bool receivedOk = false;
+
+  while (millis() - start < timeoutMs) {
+    while (SerialAT.available()) {
+      char c = SerialAT.read();
+      response += c;
+      if (modemConfig.enableDebug) {
+        Serial.print(c);
+      }
+
+      if (response.endsWith("OK\r\n")) {
+        receivedOk = true;
+      }
+
+      #if ENABLE_WDT_DEFENSIVE_LOOPS
+      if (millis() - lastFeed >= 150) {
+        esp_task_wdt_reset();
+        lastFeed = millis();
+        delay(1);
+      }
+      #endif
+    }
+
+    if (receivedOk) {
+      break;
+    }
+
+    esp_task_wdt_reset();
+    delay(1);
+  }
+
+  if (!receivedOk) {
+    logMessage(1, "[FIX-5] Respuesta incompleta de +CNACT?");
+    return false;
+  }
+
+  if (modemConfig.enableDebug) {
+    logMessage(3, String("[FIX-5] Respuesta +CNACT?: ") + response);
+  }
+
+  return true;
+}
+
+static bool extractActivePdpContext(const String& response, PdpContextInfo& ctx) {
+  int idx = 0;
+
+  while ((idx = response.indexOf("+CNACT:", idx)) != -1) {
+    int lineEnd = response.indexOf('\n', idx);
+    String line = response.substring(idx, (lineEnd == -1) ? response.length() : lineEnd);
+    idx = (lineEnd == -1) ? response.length() : lineEnd;
+
+    int colon = line.indexOf(':');
+    if (colon == -1) {
+      continue;
+    }
+
+    String payload = line.substring(colon + 1);
+    payload.trim();
+    payload.replace("\r", "");
+
+    int firstComma = payload.indexOf(',');
+    if (firstComma == -1) {
+      continue;
+    }
+
+    int secondComma = payload.indexOf(',', firstComma + 1);
+    if (secondComma == -1) {
+      continue;
+    }
+
+    int cid = payload.substring(0, firstComma).toInt();
+    int state = payload.substring(firstComma + 1, secondComma).toInt();
+    String ip = payload.substring(secondComma + 1);
+    ip.trim();
+    ip.replace("\"", "");
+
+    if (state == 1 && ip.length() > 0 && ip != "0.0.0.0") {
+      ctx.cid = cid;
+      ctx.ip = ip;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool ensurePdpActive(uint32_t budgetMs) {
+  if (budgetMs < PDP_VALIDATION_MIN_BUDGET_MS) {
+    budgetMs = PDP_VALIDATION_MIN_BUDGET_MS;
+  }
+
+  if (budgetMs > PDP_VALIDATION_MAX_SLICE_MS) {
+    budgetMs = PDP_VALIDATION_MAX_SLICE_MS;
+  }
+
+  logMessage(2, String("[FIX-5] Validando PDP activo (presupuesto ") + budgetMs + "ms)");
+
+  // Refuerza la activación antes de iniciar la validación.
+  sendATCommand("+CNACT=0,1", "OK", 5000);
+
+  unsigned long start = millis();
+  uint8_t attempt = 0;
+
+  while (millis() - start < budgetMs) {
+    attempt++;
+
+    PdpContextInfo ctx;
+    String response;
+
+    if (captureCNACTResponse(response, 4000) && extractActivePdpContext(response, ctx)) {
+      logMessage(2, String("[FIX-5] PDP activo detectado en contexto ") + ctx.cid + " (IP " + ctx.ip + ")");
+      return true;
+    }
+
+    logMessage(3, String("[FIX-5] CNACT? sin PDP activo (intento ") + attempt + ")");
+
+    if ((attempt % 2) == 0) {
+      logMessage(3, "[FIX-5] Reintentando activación PDP");
+      sendATCommand("+CNACT=0,1", "OK", 5000);
+    }
+
+    if (millis() - start < budgetMs) {
+      esp_task_wdt_reset();
+      delay(1500);
+    }
+  }
+
+  logMessage(1, String("[FIX-5] Agotado presupuesto PDP sin IP válida tras ") + budgetMs + "ms");
+  return false;
+}
+
 /**
  * Establece conexión LTE con configuración adaptativa
  * @return true si la conexión es exitosa
  */
 bool startLTE() {
+  if (!ensureCommunicationBudget("startLTE_begin")) {
+    return false;
+  }
+
   logMessage(2, "🌐 Iniciando conexión LTE");
   updateCheckpoint(CP_LTE_CONNECT); // 🆕 FIX-004: Conectando a LTE
 
@@ -338,6 +628,10 @@ bool startLTE() {
   // Activar contexto PDP
   if (!sendATCommand("+CNACT=0,1", "OK", 5000)) {
     logMessage(0, "❌ Fallo activando contexto PDP");
+    modemHealthRegisterTimeout("startLTE_CNACT"); // 🆕 FIX-8
+    if (modemHealthShouldAbortCycle()) {
+      return false;
+    }
     return false;
   }
 
@@ -345,23 +639,48 @@ bool startLTE() {
   unsigned long t0 = millis();
   unsigned long maxWaitTime = 120000;  // 🆕 FIX-4.1.1: 120s para zonas de señal baja (antes 60s)
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
+  // En modo multi-operador, g_lte_max_wait_ms define el máximo
+  // absoluto para este perfil (presupuesto ya recortado en tryConnectOperator).
   if (g_lte_max_wait_ms > 0 && g_lte_max_wait_ms < maxWaitTime) {
     maxWaitTime = g_lte_max_wait_ms;
   }
 #endif
 
-  while (millis() - t0 < maxWaitTime) {
+  while (true) {
+    unsigned long now = millis();
+    unsigned long elapsed = now - t0;
+    if (elapsed >= maxWaitTime) {
+      break;
+    }
+    if (!ensureCommunicationBudget("startLTE_wait")) {
+      return false;
+    }
+
     esp_task_wdt_reset(); // 🆕 FIX-003: Feed watchdog en cada iteración
     int signalQuality = modem.getSignalQuality();
     logMessage(3, "📶 Calidad de señal: " + String(signalQuality));
 
-    sendATCommand("+CNACT?", "OK", getAdaptiveTimeout());
-
     if (modem.isNetworkConnected()) {
-      logMessage(2, "✅ Conectado a la red LTE");
-      sendATCommand("+CPSI?", "OK", getAdaptiveTimeout());
-      flushPortSerial();
-      return true;
+      uint32_t elapsed = millis() - t0;
+      uint32_t remaining = (elapsed >= maxWaitTime) ? 0 : (maxWaitTime - elapsed);
+      uint32_t cycleRemaining = remainingCommunicationCycleBudget();
+      if (cycleRemaining > 0 && cycleRemaining < remaining) {
+        remaining = cycleRemaining;
+      }
+
+      if (!ensurePdpActive(remaining)) {
+        logMessage(1, "[FIX-5] Registro LTE sin PDP activo, reintentando dentro del presupuesto");
+        modemHealthRegisterTimeout("startLTE_ensurePdpActive"); // 🆕 FIX-8
+        if (modemHealthShouldAbortCycle()) {
+          return false;
+        }
+      } else {
+        logMessage(2, "✅ Conectado a la red LTE con PDP activo");
+        sendATCommand("+CPSI?", "OK", getAdaptiveTimeout());
+        flushPortSerial();
+        modemHealthMarkOk(); // 🆕 FIX-8: se logró conexión LTE estable
+        return true;
+      }
     }
 
     delay(1000);
@@ -370,8 +689,6 @@ bool startLTE() {
   logMessage(0, "❌ Timeout: No se pudo conectar a la red LTE");
   return false;
 }
-
-#if ENABLE_MULTI_OPERATOR_EFFICIENT
 
 static void buildOperatorOrder(uint8_t* order, size_t& count) {
   count = 0;
@@ -410,6 +727,11 @@ static void buildOperatorOrder(uint8_t* order, size_t& count) {
 }
 
 static bool tryConnectOperator(const OperatorProfile& profile, uint32_t allowedMs, uint32_t& elapsedMs) {
+  if (!ensureCommunicationBudget("tryConnectOperator")) {
+    elapsedMs = 0;
+    return false;
+  }
+
   if (allowedMs < 5000UL) {
     allowedMs = 5000UL;  // Tiempo mínimo razonable para que startLTE haga algo útil
   }
@@ -422,12 +744,14 @@ static bool tryConnectOperator(const OperatorProfile& profile, uint32_t allowedM
   modemConfig.apn = profile.apn;
 
   uint32_t startMs = millis();
+  // Limitar el tiempo máximo interno de startLTE para este perfil.
   g_lte_max_wait_ms = allowedMs;
 
   bool ok = startLTE();
 
   elapsedMs = millis() - startMs;
-  g_lte_max_wait_ms = LTE_CONNECT_BUDGET_MS; // Restaurar para siguientes usos
+  // Restaurar presupuesto global para siguientes llamadas fuera del modo multi-operador.
+  g_lte_max_wait_ms = LTE_CONNECT_BUDGET_MS;
 
   logMessage(ok ? 2 : 1,
              String("[FIX-4] Resultado ") + profile.name +
@@ -438,6 +762,10 @@ static bool tryConnectOperator(const OperatorProfile& profile, uint32_t allowedM
 }
 
 static bool startLTE_multiOperator() {
+  if (!ensureCommunicationBudget("startLTE_multiOperator")) {
+    return false;
+  }
+
   if (OP_PROFILES_COUNT == 0) {
     logMessage(1, "[FIX-4] Sin perfiles definidos, usando startLTE estándar");
     return startLTE();
@@ -456,6 +784,10 @@ static bool startLTE_multiOperator() {
   logMessage(2, "[FIX-4] Presupuesto LTE total: " + String(remainingBudget) + "ms");
 
   for (size_t idx = 0; idx < count; ++idx) {
+    if (!ensureCommunicationBudget("startLTE_multiOperator_loop")) {
+      return false;
+    }
+
     if (remainingBudget < 2000UL) {
       logMessage(1, "[FIX-4] Presupuesto LTE agotado antes de probar más perfiles");
       break;
@@ -473,6 +805,7 @@ static bool startLTE_multiOperator() {
     if (ok) {
       g_last_success_operator_id = profile.id;
       g_operator_failures[profile.id] = 0;
+      persistOperatorId(profile.id);
       return true;
     }
 
@@ -490,8 +823,6 @@ static bool startLTE_multiOperator() {
   logMessage(1, "[FIX-4] Ningún perfil logró conexión en el presupuesto disponible");
   return false;
 }
-
-#endif // ENABLE_MULTI_OPERATOR_EFFICIENT
 
 /**
  * Verifica el estado actual del socket TCP
@@ -545,6 +876,10 @@ bool isSocketOpen() {
  */
 bool tcpOpenSafe() {
   logMessage(2, "🔌 Abriendo conexión TCP con validación de estado");
+
+  if (!ensureCommunicationBudget("tcpOpenSafe")) {
+    return false;
+  }
   
   // Verificar si hay socket abierto
   if (isSocketOpen()) {
@@ -579,13 +914,25 @@ bool tcpOpen() {
   unsigned long timeout = getAdaptiveTimeout();
 
   for (int intento = 0; intento < maxAttempts; intento++) {
+    if (!ensureCommunicationBudget("tcpOpen_attempt")) {
+      return false;
+    }
+
     logMessage(3, "🔄 Intento " + String(intento + 1) + " de " + String(maxAttempts));
 
     String openCommand = "+CAOPEN=0,0,\"TCP\",\"" + modemConfig.serverIP + "\"," + modemConfig.serverPort;
 
     if (sendATCommand(openCommand, "+CAOPEN: 0,0", timeout)) {
       logMessage(2, "✅ Socket TCP abierto exitosamente");
+      modemHealthMarkOk(); // 🆕 FIX-8: progreso real en TCP
       return true;
+    }
+
+    // Registrar timeout crítico para FIX-8
+    modemHealthRegisterTimeout("tcpOpen_CAOPEN");
+    if (modemHealthShouldAbortCycle()) {
+      // Evitar loops de reapertura inútiles
+      return false;
     }
 
     // Cerrar socket por si quedó en estado inconsistente
@@ -1252,6 +1599,10 @@ void guardarDato(String data) {
 void enviarDatos() {
   logMessage(2, "📤 Iniciando envío de datos del buffer");
 
+  if (!ensureCommunicationBudget("enviarDatos_begin")) {
+    return;
+  }
+
   if (!LittleFS.exists(ARCHIVO_BUFFER)) {
     logMessage(2, "ℹ️  No hay archivo de buffer para enviar");
     return;
@@ -1288,6 +1639,11 @@ void enviarDatos() {
   int datosFallidos = 0;
 
   while (fin.available()) {
+    if (!ensureCommunicationBudget("enviarDatos_loop")) {
+      logMessage(1, "[FIX-6] Ciclo de envío detenido por presupuesto global agotado");
+      break;
+    }
+
     String linea = fin.readStringUntil('\n');
     linea.trim();
     if (linea.length() == 0) continue;  // Saltar líneas vacías
@@ -1432,6 +1788,10 @@ static int8_t waitForAnyToken(Stream& s,
  * @return true si el envío es exitoso
  */
 bool tcpSendData(const String& datos, uint32_t timeout_ms) {
+  if (!ensureCommunicationBudget("tcpSendData")) {
+    return false;
+  }
+
   logMessage(3, "📤 Enviando " + String(datos.length()) + " bytes por TCP");
 
   // Limpiar buffers de entrada

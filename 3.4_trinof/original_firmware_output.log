@@ -1,0 +1,118 @@
+=~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2025.05.11 19:14:11 =~=~=~=~=~=~=~=~=~=~=~=
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xb (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x118c
+load:0x403c8700,len:0x4
+load:0x403c8704,len:0xc20
+load:0x403cb700,len:0x30e0
+entry 0x403c88b8
+Wakeup was not caused by deep sleep: 0
+1746990691
+Task GPS running on core 0
+20.6447449
+0.0000000
+26.77
+34.77
+0.00
+0.00
+0.00
+0.00
+0.00
+25.74
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+3.49
+26.78
+34.84
+0.00
+0.00
+0.00
+0.00
+0.00
+25.74
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+3.56
+========INIT========
+SIMCOM_SIM7080
+12
+CONNECT
+
++CPSI: LTE CAT-M1,Online,334-050,0x13BF,36682272,202,EUTRAN-BAND4,2225,4,4,-17,-117,-90,13
+
+OK
+
+89883030000096467599
+860016049963627
+12
+89883030000096467599
+860016049963627
+12
+89883030000096467599
+860016049963627
+12
+89883030000096467599
+860016049963627
+12
+89883030000096467599
+860016049963627
+12
+89883030000096467599
+860016049963627
+12
+
++CAOPEN: 0,0
+
+OK
+
+20.6447449
+0.0000000
+-----Debug----
+uuid: 89883030000096467599
+epoc: 1746990691
+temperatura_ambiente: 26.78
+humedad_relativa :34.84
+luz:0.00
+radiación:0.00
+presion_barometrica:0.00
+co2:0.00
+humedad_suelo:0.00
+temperatura_suelo:25.74
+ce_suelo:0.00
+ph_suelo:0.00
+nitrogeno:0.00
+fosforo:0.00
+potasio:0.00
+viento:0.00
+lat:20.6447449
+lng:0.0000000
+bat:3.56
+rssi:12
+envio: $,89883030000096467599,1746990691,26.78,34.84,0.00,0.00,0.00,0.00,0.00,25.74,0.00,0.00,0.00,0.00,0.00,0.00,20.6447449,0.0000000,3.56,12,#
+encrypt: lPNDoqXz++gULBxc1TwkiEBgNciKVD7Rzh7I5JjGXiqpYhvvTBgWUunOMMn+ft1az31VMjf7mgJYoaZxTHazCIqyOA3RkCEFLqM/rmTKKKd5KDb7cyvSfFUWTiP0rSxejFqTVtr8vavFxooh5wUETz+tiCw/SUpnVisg3jPoD3vDGAh6eBS9EgMa8KA2b6fs
+---------
+
+> 
+
+
++CARECV: 1,$
+
+OK
+
+Setup ESP32 to sleep for every 600 Seconds
+Going to sleep now

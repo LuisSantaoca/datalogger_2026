@@ -114,6 +114,7 @@ void setup() {
   Serial.println("==========================================");
   Serial.println("Iniciando sistema...");
   Serial.println(String("🔖 Firmware activo: ") + FIRMWARE_VERSION_TAG);
+  Serial.println("🧩 FIX ACTIVO: FIX-7 Perfil LTE persistente (multi-operador)");
   Serial.println("⏱️  Cronómetro iniciado - midiendo tiempo de funcionamiento");
   
   // Imprimir configuración de GPS

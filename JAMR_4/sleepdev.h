@@ -167,7 +167,7 @@ void markCycleSuccess();
  * - Para mayor duración de batería, usar valores más altos
  * - Para monitoreo más frecuente, usar valores más bajos
  */
-#define TIME_TO_SLEEP 600
+#define TIME_TO_SLEEP 1200
 
 // =============================================================================
 // DECLARACIONES DE FUNCIONES

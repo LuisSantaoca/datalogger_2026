@@ -106,6 +106,23 @@ struct OperatorProfile {
 };
 
 // =============================================================================
+// FIX-6: PRESUPUESTO GLOBAL DE CICLO DE COMUNICACIÓN
+// =============================================================================
+
+// Tiempo máximo permitido (ms) para todo el ciclo LTE/TCP antes de abortar.
+// Ajustar tras pruebas de campo para balancear consumo vs. fiabilidad.
+static const uint32_t COMM_CYCLE_BUDGET_MS = 150000UL; // 150s máximo
+
+// Registra el inicio del ciclo (debe llamarse antes de cualquier intento LTE/TCP).
+void resetCommunicationCycleBudget();
+
+// Retorna milisegundos restantes antes de agotar el presupuesto global.
+uint32_t remainingCommunicationCycleBudget();
+
+// Verifica si aún queda presupuesto; si no, loguea y retorna false.
+bool ensureCommunicationBudget(const char* contextTag);
+
+// =============================================================================
 // ESTRUCTURAS DE DATOS
 // =============================================================================
 
@@ -134,6 +151,13 @@ extern int signalsim0;            // Calidad de señal actual
 extern bool modemInitialized;     // Estado de inicialización del módem
 extern bool gpsEnabled;           // Estado del GPS integrado
 extern int consecutiveFailures;   // Contador de fallos consecutivos
+
+// =============================================================================
+// FIX-8: ESTADO DE SALUD DEL MÓDEM
+// =============================================================================
+
+// Estado de salud del módem en el ciclo actual
+extern modem_health_state_t g_modem_health_state;
 
 // =============================================================================
 // FUNCIONES DE CONFIGURACIÓN DEL MÓDEM

@@ -101,6 +101,18 @@ typedef struct {
 } sensordata_type;
 
 // =============================================================================
+// ESTADO DE SALUD DEL MÓDEM (FIX-008)
+// =============================================================================
+
+typedef enum {
+  MODEM_HEALTH_OK = 0,              // Operación normal
+  MODEM_HEALTH_TRYING = 1,          // Intentando conexión / operación
+  MODEM_HEALTH_ZOMBIE_DETECTED = 2, // No hay progreso razonable
+  MODEM_HEALTH_RECOVERED = 3,       // Se detectó problema y se recuperó
+  MODEM_HEALTH_FAILED = 4           // Fallo definitivo en el ciclo actual
+} modem_health_state_t;
+
+// =============================================================================
 // NOTAS DE IMPLEMENTACIÓN
 // =============================================================================
 
