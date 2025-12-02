@@ -1,6 +1,6 @@
 // =============================================================================
-// ARCHIVO: JAMR_4.ino
-// VERSIÓN: 4.0.0-JAMR
+// ARCHIVO: JAMR_4.4.ino
+// VERSIÓN: 4.4
 // DESCRIPCIÓN: Programa principal para sistema de monitoreo ambiental con ESP32-S3
 //              Basado en sensores_elathia_fix_gps (versión estable y probada)
 // FUNCIONALIDADES:
@@ -39,12 +39,12 @@ Cronometro cronometroDispositivo;
 bool g_had_crash = false;
 
 // 🆕 FIX-007: Etiqueta de versión para logs y health tracking
-const char* FIRMWARE_VERSION_TAG = "v4.1.1-JAMR4-TIMEOUT";
+const char* FIRMWARE_VERSION_TAG = "v4.4.9";
 
 // 🆕 REQ-004: Versionamiento semántico para payload
 const uint8_t FIRMWARE_VERSION_MAJOR = 4;
-const uint8_t FIRMWARE_VERSION_MINOR = 1;
-const uint8_t FIRMWARE_VERSION_PATCH = 1;
+const uint8_t FIRMWARE_VERSION_MINOR = 4;
+const uint8_t FIRMWARE_VERSION_PATCH = 9;
 
 // =============================================================================
 // CONFIGURACIÓN DEL SISTEMA

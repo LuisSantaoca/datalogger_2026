@@ -13,6 +13,9 @@ static bool captureCNACTResponse(String& response, unsigned long timeoutMs);
 static bool extractActivePdpContext(const String& response, PdpContextInfo& ctx);
 static bool ensurePdpActive(uint32_t budgetMs);
 
+// FIX-9: Presupuesto de tiempo para el intento rápido AUTO_LITE
+static const uint32_t AUTO_LITE_BUDGET_MS = 30000UL; // 30s máximo para camino rápido
+
 static const uint32_t PDP_VALIDATION_MIN_BUDGET_MS = 4000UL;
 static const uint32_t PDP_VALIDATION_MAX_SLICE_MS = 20000UL;
 
@@ -22,6 +25,8 @@ static bool g_cycle_budget_set = false;
 // FIX-8: Estado global de salud del módem en el ciclo actual
 modem_health_state_t g_modem_health_state = MODEM_HEALTH_OK;
 static uint8_t g_modem_timeouts_critical = 0; // cuenta timeouts en operaciones críticas (CNACT, CAOPEN, envío TCP)
+static bool g_modem_recovery_attempted = false;
+static const char* FIX8_DEFAULT_CONTEXT = "FIX-8";
 
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
 // Tabla de perfiles de operador. Ajustar según resultados de campo.
@@ -71,6 +76,7 @@ static const char* FIX6_DEFAULT_CONTEXT = "contexto-desconocido";
 static void modemHealthReset() {
   g_modem_health_state = MODEM_HEALTH_OK;
   g_modem_timeouts_critical = 0;
+  g_modem_recovery_attempted = false;
 }
 
 static void modemHealthRegisterTimeout(const char* contextTag) {
@@ -85,6 +91,64 @@ static void modemHealthRegisterTimeout(const char* contextTag) {
   }
 }
 
+static bool modemHealthAttemptRecovery(const char* contextTag) {
+  const char* tag = (contextTag && contextTag[0] != '\0') ? contextTag : FIX8_DEFAULT_CONTEXT;
+
+  if (g_modem_recovery_attempted) {
+    logMessage(1, String("[FIX-8] Recuperación profunda ya ejecutada; se mantiene estado de fallo en ") + tag);
+    return false;
+  }
+
+  if (!ensureCommunicationBudget("FIX8_recovery_begin")) {
+    logMessage(1, "[FIX-8] Sin presupuesto global para intento de recuperación profunda");
+    return false;
+  }
+
+  g_modem_recovery_attempted = true;
+  logMessage(1, String("[FIX-8] Intentando recuperación profunda tras detectar estado zombie en ") + tag);
+
+  bool ok = true;
+
+  // Cerrar socket activo si aplica para liberar estado.
+  if (isSocketOpen()) {
+    logMessage(2, "[FIX-8] Cerrando socket antes de la recuperación profunda");
+    ok = tcpClose() && ok;
+    delay(200);
+  }
+
+  // Desactivar PDP y radio antes de reiniciar RF.
+  if (!sendATCommand("+CNACT=0,0", "OK", 10000)) {
+    logMessage(1, "[FIX-8] Fallo desactivando PDP durante recuperación");
+    ok = false;
+  }
+
+  if (!sendATCommand("+CFUN=0", "OK", 10000)) {
+    logMessage(1, "[FIX-8] Fallo apagando RF durante recuperación");
+    ok = false;
+  }
+
+  for (uint8_t i = 0; i < 6; ++i) {
+    delay(250);
+    esp_task_wdt_reset();
+  }
+
+  if (!sendATCommand("+CFUN=1", "OK", 10000)) {
+    logMessage(1, "[FIX-8] Fallo reactivando RF durante recuperación");
+    ok = false;
+  }
+
+  if (ok) {
+    g_modem_health_state = MODEM_HEALTH_TRYING;
+    g_modem_timeouts_critical = 0;
+    logMessage(2, "[FIX-8] Recuperación profunda completada; se reintentará flujo de comunicación");
+  } else {
+    g_modem_health_state = MODEM_HEALTH_FAILED;
+    logMessage(0, "[FIX-8] Recuperación profunda falló, marcando ciclo como fallo");
+  }
+
+  return ok;
+}
+
 static void modemHealthMarkOk() {
   if (g_modem_health_state == MODEM_HEALTH_TRYING || g_modem_health_state == MODEM_HEALTH_ZOMBIE_DETECTED) {
     g_modem_health_state = MODEM_HEALTH_RECOVERED;
@@ -95,12 +159,27 @@ static void modemHealthMarkOk() {
   g_modem_timeouts_critical = 0;
 }
 
-static bool modemHealthShouldAbortCycle() {
+static bool modemHealthShouldAbortCycle(const char* contextTag) {
+  const char* tag = (contextTag && contextTag[0] != '\0') ? contextTag : FIX8_DEFAULT_CONTEXT;
+
   if (g_modem_health_state == MODEM_HEALTH_ZOMBIE_DETECTED && g_modem_timeouts_critical >= 3) {
-    logMessage(1, "[FIX-8] Estado zombie confirmado: se marcará fallo de módem en este ciclo");
+    logMessage(1, String("[FIX-8] Estado zombie confirmado tras múltiples timeouts en ") + tag);
+
+    if (modemHealthAttemptRecovery(tag)) {
+      logMessage(2, "[FIX-8] Recuperación profunda ejecutada; continuando con presupuesto remanente");
+      return false;
+    }
+
     g_modem_health_state = MODEM_HEALTH_FAILED;
+    logMessage(0, "[FIX-8] Recuperación fallida, se abortará ciclo");
     return true;
   }
+
+  if (g_modem_health_state == MODEM_HEALTH_FAILED) {
+    logMessage(0, String("[FIX-8] Ciclo ya marcado como fallo definitivo en ") + tag);
+    return true;
+  }
+
   return false;
 }
 
@@ -375,11 +454,31 @@ void setupModem(sensordata_type* data) {
   logMessage(2, String("[FIX-6] Presupuesto global de ciclo: ") + COMM_CYCLE_BUDGET_MS + "ms");
 
   bool lteOk = false;
-#if ENABLE_MULTI_OPERATOR_EFFICIENT
-  lteOk = startLTE_multiOperator();
-#else
-  lteOk = startLTE();
-#endif
+
+  // FIX-9: Intento rápido AUTO_LITE antes del flujo multi-perfil
+  if (ensureCommunicationBudget("AUTO_LITE_begin")) {
+    logMessage(2, "[FIX-9] Intentando perfil rápido AUTO_LITE");
+    uint32_t startAuto = millis();
+    bool autoOk = startLTE_autoLite();
+    uint32_t elapsedAuto = millis() - startAuto;
+
+    logMessage(autoOk ? 2 : 1,
+               String("[FIX-9] AUTO_LITE ") + (autoOk ? "OK" : "FAIL") +
+               ", tiempo=" + String(elapsedAuto) + "ms");
+
+    if (autoOk) {
+      lteOk = true;
+    }
+  }
+
+  // Si AUTO_LITE falla, continuar con el flujo existente
+  if (!lteOk) {
+  #if ENABLE_MULTI_OPERATOR_EFFICIENT
+    lteOk = startLTE_multiOperator();
+  #else
+    lteOk = startLTE();
+  #endif
+  }
 
   if (lteOk) {
     updateCheckpoint(CP_LTE_OK); // 🆕 FIX-004: Conexión LTE establecida
@@ -629,7 +728,7 @@ bool startLTE() {
   if (!sendATCommand("+CNACT=0,1", "OK", 5000)) {
     logMessage(0, "❌ Fallo activando contexto PDP");
     modemHealthRegisterTimeout("startLTE_CNACT"); // 🆕 FIX-8
-    if (modemHealthShouldAbortCycle()) {
+    if (modemHealthShouldAbortCycle("startLTE_CNACT")) {
       return false;
     }
     return false;
@@ -671,7 +770,7 @@ bool startLTE() {
       if (!ensurePdpActive(remaining)) {
         logMessage(1, "[FIX-5] Registro LTE sin PDP activo, reintentando dentro del presupuesto");
         modemHealthRegisterTimeout("startLTE_ensurePdpActive"); // 🆕 FIX-8
-        if (modemHealthShouldAbortCycle()) {
+        if (modemHealthShouldAbortCycle("startLTE_ensurePdpActive")) {
           return false;
         }
       } else {
@@ -687,6 +786,114 @@ bool startLTE() {
   }
 
   logMessage(0, "❌ Timeout: No se pudo conectar a la red LTE");
+  return false;
+}
+
+/**
+ * FIX-9: Establece una conexión LTE rápida AUTO_LITE.
+ * Camino feliz minimalista inspirado en agroMod01_jorge_trino.
+ * No reconfigura bandas ni cambia perfiles; usa CFUN, CGDCONT y CNACT
+ * con un presupuesto de tiempo acotado, validando PDP sólo si hay red.
+ */
+bool startLTE_autoLite() {
+  if (!ensureCommunicationBudget("startLTE_autoLite_begin")) {
+    return false;
+  }
+
+  logMessage(2, "[FIX-9] 🌐 Iniciando conexión LTE AUTO_LITE");
+  updateCheckpoint(CP_LTE_CONNECT);
+
+  // Activar funcionalidad completa del módem (RF ON), pero sin reconfigurar bandas.
+  modem.sendAT("+CFUN=1");
+  modem.waitResponse();
+
+  // Esperar respuesta básica del módem con límite de intentos.
+  int retry = 0;
+  const int maxRetries = 5;
+  while (!modem.testAT(1000)) {
+    if (!ensureCommunicationBudget("startLTE_autoLite_testAT")) {
+      modemHealthRegisterTimeout("AUTO_LITE_testAT_budget");
+      return false;
+    }
+
+    esp_task_wdt_reset();
+    flushPortSerial();
+    logMessage(3, "[FIX-9] AUTO_LITE esperando respuesta del módem...");
+
+    if (retry++ >= maxRetries) {
+      logMessage(1, "[FIX-9] AUTO_LITE: módem no responde tras reintentos");
+      modemHealthRegisterTimeout("AUTO_LITE_testAT");
+      if (modemHealthShouldAbortCycle("AUTO_LITE_testAT")) {
+        return false;
+      }
+      return false;
+    }
+  }
+
+  // Contexto PDP mínimo usando el APN actual.
+  String pdpCommand = "+CGDCONT=1,\"IP\",\"" + modemConfig.apn + "\"";
+  if (!sendATCommand(pdpCommand, "OK", 5000)) {
+    logMessage(1, "[FIX-9] AUTO_LITE: fallo configurando contexto PDP mínimo");
+    modemHealthRegisterTimeout("AUTO_LITE_CGDCONT");
+    if (modemHealthShouldAbortCycle("AUTO_LITE_CGDCONT")) {
+      return false;
+    }
+    return false;
+  }
+
+  // Activar contexto PDP.
+  if (!sendATCommand("+CNACT=0,1", "OK", 8000)) {
+    logMessage(1, "[FIX-9] AUTO_LITE: fallo activando contexto PDP");
+    modemHealthRegisterTimeout("AUTO_LITE_CNACT");
+    if (modemHealthShouldAbortCycle("AUTO_LITE_CNACT")) {
+      return false;
+    }
+    // No forzar restart; se delega a lógica de fallback.
+    return false;
+  }
+
+  // Esperar registro en red LTE con presupuesto acotado.
+  unsigned long t0 = millis();
+  uint32_t maxWaitTime = AUTO_LITE_BUDGET_MS;
+
+  while (millis() - t0 < maxWaitTime) {
+    if (!ensureCommunicationBudget("startLTE_autoLite_wait")) {
+      modemHealthRegisterTimeout("AUTO_LITE_budget");
+      return false;
+    }
+
+    esp_task_wdt_reset();
+    int signalQuality = modem.getSignalQuality();
+    logMessage(3, String("[FIX-9] AUTO_LITE RSSI: ") + signalQuality);
+
+    if (modem.isNetworkConnected()) {
+      uint32_t elapsed = millis() - t0;
+      uint32_t remaining = (elapsed >= maxWaitTime) ? 0 : (maxWaitTime - elapsed);
+      uint32_t cycleRemaining = remainingCommunicationCycleBudget();
+      if (cycleRemaining > 0 && cycleRemaining < remaining) {
+        remaining = cycleRemaining;
+      }
+
+      // Validar PDP sólo dentro del presupuesto restante.
+      if (!ensurePdpActive(remaining)) {
+        logMessage(1, "[FIX-9] AUTO_LITE: registro LTE sin PDP activo");
+        modemHealthRegisterTimeout("AUTO_LITE_ensurePdpActive");
+        if (modemHealthShouldAbortCycle("AUTO_LITE_ensurePdpActive")) {
+          return false;
+        }
+      } else {
+        logMessage(2, "[FIX-9] ✅ AUTO_LITE conectado a LTE con PDP activo");
+        sendATCommand("+CPSI?", "OK", 5000);
+        flushPortSerial();
+        modemHealthMarkOk();
+        return true;
+      }
+    }
+
+    delay(1000);
+  }
+
+  logMessage(1, "[FIX-9] AUTO_LITE timeout: no se logró conexión dentro del presupuesto");
   return false;
 }
 
@@ -930,7 +1137,7 @@ bool tcpOpen() {
 
     // Registrar timeout crítico para FIX-8
     modemHealthRegisterTimeout("tcpOpen_CAOPEN");
-    if (modemHealthShouldAbortCycle()) {
+    if (modemHealthShouldAbortCycle("tcpOpen_CAOPEN")) {
       // Evitar loops de reapertura inútiles
       return false;
     }
@@ -1805,6 +2012,8 @@ bool tcpSendData(const String& datos, uint32_t timeout_ms) {
   modem.sendAT(String("+CASEND=0,") + String(len));
   if (!waitForToken(SerialAT, ">", timeout_ms)) {
     logMessage(0, "❌ Timeout esperando prompt '>' para envío");
+    modemHealthRegisterTimeout("tcpSend_prompt");
+    modemHealthShouldAbortCycle("tcpSend_prompt");
     return false;
   }
 
@@ -1823,15 +2032,20 @@ bool tcpSendData(const String& datos, uint32_t timeout_ms) {
 
   if (result == 1) {
     logMessage(3, "✅ Datos TCP enviados exitosamente");
+    modemHealthMarkOk();
     return true;
   }
 
   if (result == -1) {
     logMessage(0, "❌ Error en envío TCP");
+    modemHealthRegisterTimeout("tcpSend_error");
+    modemHealthShouldAbortCycle("tcpSend_error");
     return false;
   }
 
   logMessage(0, "❌ Timeout en envío TCP");
+  modemHealthRegisterTimeout("tcpSend_timeout");
+  modemHealthShouldAbortCycle("tcpSend_timeout");
   return false;
 }
 

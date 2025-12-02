@@ -248,6 +248,16 @@ void setupModem(sensordata_type* data);
 bool startLTE();
 
 /**
+ * FIX-9: Establece una conexión LTE rápida AUTO_LITE
+ * Camino feliz minimalista inspirado en agroMod01_jorge_trino.
+ * Intenta una secuencia corta (CFUN, CGDCONT, CNACT, isNetworkConnected)
+ * con presupuesto de tiempo acotado, sin reconfigurar bandas ni perfiles.
+ *
+ * @return true si la conexión es exitosa dentro del presupuesto AUTO_LITE
+ */
+bool startLTE_autoLite();
+
+/**
  * Limpia todos los buffers de comunicación serial
  * Elimina datos residuales para evitar interferencias
  */

@@ -63,14 +63,14 @@ Reducir al mínimo el riesgo de que el módem SIM7080G quede en estados "zombie"
 
 ## Plan de ejecución
 
-- [ ] 1. Análisis de código actual de `gsmlte.cpp` y puntos de hook posibles.
-- [ ] 2. Diseñar máquina de estados detallada (diagrama + tabla de transiciones) y reflejarla en este documento.
-- [ ] 3. Definir estructuras y enums necesarios en `type_def.h`.
-- [ ] 4. Implementar lógica de salud del módem y recuperación en `gsmlte.cpp` (respetando FIX-3/4/5/6/7).
-- [ ] 5. Añadir logs específicos `[FIX-8]` para trazabilidad (detección zombie, recuperación, fallo final).
-- [ ] 6. Probar en entorno controlado (simular fallos de PDP/TCP, mala señal).
-- [ ] 7. Probar en campo rural y capturar logs de varios ciclos.
-- [ ] 8. Actualizar documentación: reporte final de FIX-8, changelog y, si aplica, README.
+- [x] 1. Análisis de código actual de `gsmlte.cpp` y puntos de hook posibles (se revisaron `startLTE`, `startLTE_autoLite`, `tcpOpen/tcpSendData` y `enviarDatos`).
+- [x] 2. Diseñar máquina de estados detallada (MODEM_HEALTH_OK/TRYING/ZOMBIE_DETECTED/RECOVERED/FAILED) y documentarla aquí.
+- [x] 3. Definir estructuras y enums necesarios en `type_def.h` (enum agregado como parte de FIX-8).
+- [x] 4. Implementar lógica de salud del módem y recuperación en `gsmlte.cpp` (detección de timeouts críticos + recuperación profunda única y abortos controlados respetando FIX-3/4/5/6/7).
+- [x] 5. Añadir logs específicos `[FIX-8]` para trazabilidad (detección zombie, intento de recuperación, fallo definitivo o recuperación exitosa).
+- [x] 6. Probar en entorno controlado (simulaciones de fallos PDP/TCP fuerzan la recuperación y validan que no se excede el presupuesto de ciclo).
+- [ ] 7. Probar en campo rural y capturar logs de varios ciclos (pendiente de ventana de pruebas en sitio real).
+- [x] 8. Actualizar documentación: reporte final de FIX-8, changelog y, si aplica, README.
 
 ## Riesgos y consideraciones
 
