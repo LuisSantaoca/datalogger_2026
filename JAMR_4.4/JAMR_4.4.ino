@@ -39,12 +39,12 @@ Cronometro cronometroDispositivo;
 bool g_had_crash = false;
 
 // 🆕 FIX-007: Etiqueta de versión para logs y health tracking
-const char* FIRMWARE_VERSION_TAG = "v4.4.9";
+const char* FIRMWARE_VERSION_TAG = "v4.4.10";
 
 // 🆕 REQ-004: Versionamiento semántico para payload
 const uint8_t FIRMWARE_VERSION_MAJOR = 4;
 const uint8_t FIRMWARE_VERSION_MINOR = 4;
-const uint8_t FIRMWARE_VERSION_PATCH = 9;
+const uint8_t FIRMWARE_VERSION_PATCH = 10;
 
 // =============================================================================
 // CONFIGURACIÓN DEL SISTEMA
@@ -114,7 +114,6 @@ void setup() {
   Serial.println("==========================================");
   Serial.println("Iniciando sistema...");
   Serial.println(String("🔖 Firmware activo: ") + FIRMWARE_VERSION_TAG);
-  Serial.println("🧩 FIX ACTIVO: FIX-7 Perfil LTE persistente (multi-operador)");
   Serial.println("⏱️  Cronómetro iniciado - midiendo tiempo de funcionamiento");
   
   // Imprimir configuración de GPS

@@ -7,6 +7,30 @@ y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [4.4.7] - 2025-12-02
+
+### ✨ Added / FIX-008 Guardia de módem
+- **Guardia de salud del módem (FIX-8)**
+  - Nuevo estado de salud del módem (`modem_health_state_t`) integrado en `gsmlte.cpp` y `type_def.h`.
+  - Se monitoriza el resultado de las fases críticas: encendido de módem, attach LTE, activación PDP e inicio de sesión TCP.
+  - Ante fallos repetidos en un mismo ciclo, se realiza **un único intento de recuperación profunda** del módem (apaga/enciende, reseteo de contexto y re‑inicio de LTE/TCP).
+  - Si incluso después de la recuperación profunda el módem sigue fallando, se marca el ciclo como fallido y se registra en logs de FIX‑8.
+  - **Objetivo**: evitar estados "zombie" del SIM7080 (ni LTE ni TCP funcional) y asegurar que cada ciclo termina en éxito o fallo claro, sin bucles infinitos.
+
+### ✨ Added / FIX-009 Perfil AUTO_LITE
+- **Perfil AUTO_LITE (FIX-9)**
+  - Añadido un nuevo perfil de operador/estrategia LTE de bajo consumo.
+  - Permite seleccionar un modo de operación más ligero en presupuesto de tiempo y energía, priorizando la conexión más probable y reduciendo reintentos.
+  - Integrado en la lógica de `startLTE_multiOperator()` y en el sistema de perfiles persistentes introducido en FIX‑7.
+  - **Objetivo**: ofrecer un perfil optimizado para despliegues donde el balance entre consumo y tasa de éxito requiere un modo más conservador.
+
+### 📝 Notes
+- 4.4.7 consolida todos los FIX previos (003‑007) y añade FIX‑8 (guardia de módem) y FIX‑9 (perfil AUTO_LITE).
+- FIX‑8 y FIX‑9 se encuentran **activos en campo en fase de observación controlada**.
+- La estructura de documentación de calidad y de FIX se mantiene bajo `JAMR_4.4/fixs/` y `JAMR_4.4/calidad/`.
+
+---
+
 ## [4.1.1] - 2025-10-31
 
 ### ✨ Added / FIX activos (beta en campo)
