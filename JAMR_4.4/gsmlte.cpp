@@ -172,12 +172,25 @@ void configureModem(const String& serverIP, const String& serverPort,
 
 /**
  * Calcula timeout adaptativo basado en calidad de señal y fallos previos
+ * 🆕 FIX-11: Coordinado con presupuesto global (FIX-6) para evitar agotamiento
  * @return Timeout en milisegundos
  */
 unsigned long getAdaptiveTimeout() {
   unsigned long baseTimeout = modemConfig.baseTimeout;
 
-  // Ajustar según calidad de señal con rangos más específicos
+#if ENABLE_FIX11_COORDINATED_TIMEOUT
+  // 🆕 FIX-11: Ajuste CONSERVADOR por señal (máximo 1.3x, antes 2.5x)
+  // Premisa #6: Agregar funcionalidad, no reemplazar lógica existente
+  if (signalsim0 >= 15) {
+    baseTimeout *= 0.9;   // Señal buena: un poco más rápido
+  } else if (signalsim0 < 10) {
+    baseTimeout *= 1.3;   // Señal mala: un poco más tiempo
+  }
+  // ELIMINADO en FIX-11: escalamiento por consecutiveFailures (contraproducente)
+  // Análisis mostró que no ayuda y causa ciclo de muerte en zonas sin cobertura
+  
+#else
+  // Lógica LEGACY v4.4.10 sin modificar (Premisa #6: preservar código existente)
   if (signalsim0 >= 20) {
     baseTimeout *= 0.7;  // Señal excelente: timeout más corto
   } else if (signalsim0 >= 15) {
@@ -198,10 +211,51 @@ unsigned long getAdaptiveTimeout() {
     }
     baseTimeout *= multiplier;
   }
+#endif
 
-  // Limitar timeout con rangos más específicos según operación
+  // Límites de seguridad (Premisa #3: defaults seguros)
+  if (baseTimeout < 2000) baseTimeout = 2000;   // Mínimo absoluto: 2s
+  
+  // 🆕 FIX-11: Validación adicional para señal crítica
+  if (signalsim0 < 5 && baseTimeout < 5000) {
+    logMessage(2, "[FIX-11] Señal crítica (RSSI<5), timeout mínimo=5s");
+    baseTimeout = 5000;
+  }
+
+#if ENABLE_FIX11_COORDINATED_TIMEOUT
+  // 🆕 FIX-11: Coordinación con FIX-6 (presupuesto restante)
+  uint32_t remaining = remainingCommunicationCycleBudget();
+  
+  // Validación de sanidad (Premisa #3: defaults seguros)
+  if (remaining > COMM_CYCLE_BUDGET_MS) {
+    logMessage(0, "[FIX-11] ERROR: presupuesto inválido, usando default");
+    remaining = COMM_CYCLE_BUDGET_MS;  // Resetear a valor conocido
+  }
+  
+  // Reservar tiempo para operaciones posteriores
+  if (remaining < FIX11_RESERVE_FOR_REST_MS) {
+    // Presupuesto crítico: timeouts mínimos
+    logMessage(2, "[FIX-11] Presupuesto crítico (<30s), timeout=2s");
+    return 2000;
+  }
+  
+  // Limitar timeout al 15% del presupuesto restante
+  // Asume ~7 operaciones AT restantes en el ciclo
+  uint32_t maxAllowed = (remaining - FIX11_RESERVE_FOR_REST_MS) / 7;
+  
+  if (maxAllowed < 2000) maxAllowed = 2000;  // Mínimo absoluto
+  
+  if (baseTimeout > maxAllowed) {
+    logMessage(3, String("[FIX-11] Timeout limitado por presupuesto: ") +
+               baseTimeout + "ms → " + maxAllowed + "ms (restante=" + 
+               remaining + "ms)");
+    return maxAllowed;
+  }
+  
+#else
+  // Lógica LEGACY v4.4.10: límite máximo fijo 45s
   if (baseTimeout > 45000) baseTimeout = 45000; // Máximo 45s para operaciones críticas
-  if (baseTimeout < 2000) baseTimeout = 2000;   // Mínimo 2s para estabilidad
+#endif
 
   if (modemConfig.enableDebug && consecutiveFailures > 0) {
     logMessage(3, "🕐 Timeout adaptativo: " + String(baseTimeout) + "ms (señal: " + String(signalsim0) + ", fallos: " + String(consecutiveFailures) + ")");
@@ -1598,17 +1652,23 @@ void startGsm() {
 
 /**
  * Guarda datos en el buffer local con gestión inteligente
+ * 🆕 FIX-11: Operación atómica usando write-to-temp + rename
  * @param data - Datos a guardar
  */
 void guardarDato(String data) {
-  logMessage(2, "💾 Guardando dato en buffer local");
+#if ENABLE_FIX11_ATOMIC_BUFFER
+  logMessage(2, "💾 [FIX-11] Guardando dato con operación atómica");
+#else
+  logMessage(2, "💾 [LEGACY] Guardando dato (modo no-atómico v4.4.10)");
+#endif
 
   std::vector<String> lineas;
+  lineas.reserve(MAX_LINEAS + 1);  // 🆕 FIX-11: Reserva explícita (Premisa #3)
 
   // Leer líneas existentes
   if (LittleFS.exists(ARCHIVO_BUFFER)) {
     File f = LittleFS.open(ARCHIVO_BUFFER, "r");
-    while (f.available()) {
+    while (f.available() && lineas.size() < MAX_LINEAS + 5) {  // 🆕 FIX-11: Límite superior
       String linea = f.readStringUntil('\n');
       linea.trim();
       if (linea.length() > 0) lineas.push_back(linea);
@@ -1618,7 +1678,7 @@ void guardarDato(String data) {
 
   // Contar datos no enviados
   int noEnviadas = 0;
-  for (String l : lineas) {
+  for (const String& l : lineas) {
     if (!l.startsWith("#ENVIADO")) noEnviadas++;
   }
 
@@ -1639,12 +1699,41 @@ void guardarDato(String data) {
   // Agregar nuevo dato
   lineas.push_back(data);
 
-  // Reescribir archivo
-  File f = LittleFS.open(ARCHIVO_BUFFER, "w");
-  for (String l : lineas) f.println(l);
+#if ENABLE_FIX11_ATOMIC_BUFFER
+  // 🆕 FIX-11: Escritura ATÓMICA usando patrón write-to-temp + rename
+  const char* TMP = "/buffer.tmp";
+  File f = LittleFS.open(TMP, "w");
+  if (!f) {
+    logMessage(0, "[FIX-11] Error crítico: no se pudo crear archivo temporal");
+    logMessage(1, "[FIX-11] Fallback: usando escritura directa (no-atómica)");
+    // Premisa #3: Fallback a lógica legacy si falla
+    f = LittleFS.open(ARCHIVO_BUFFER, "w");
+    if (!f) return;
+    for (const String& l : lineas) f.println(l);
+    f.close();
+    return;
+  }
+  
+  for (const String& l : lineas) {
+    f.println(l);
+  }
   f.close();
-
+  
+  // Reemplazo atómico (operación garantizada por LittleFS)
+  LittleFS.remove(ARCHIVO_BUFFER);
+  LittleFS.rename(TMP, ARCHIVO_BUFFER);
+  
+  logMessage(2, String("[FIX-11] ✅ Dato guardado atómicamente. Total: ") + 
+             lineas.size() + " líneas");
+  
+#else
+  // Lógica LEGACY v4.4.10: escritura directa (no-atómica)
+  File f = LittleFS.open(ARCHIVO_BUFFER, "w");
+  for (const String& l : lineas) f.println(l);
+  f.close();
+  
   logMessage(2, "✅ Dato guardado en buffer. Total en buffer: " + String(lineas.size()) + " líneas");
+#endif
 }
 
 /**
@@ -1738,14 +1827,22 @@ void enviarDatos() {
 
 /**
  * Limpia el buffer eliminando datos ya enviados
+ * 🆕 FIX-11: Operación atómica usando write-to-temp + rename
  */
 void limpiarEnviados() {
-  logMessage(2, "🧹 Limpiando buffer de datos enviados");
+#if ENABLE_FIX11_ATOMIC_BUFFER
+  logMessage(2, "🧹 [FIX-11] Limpiando buffer con operación atómica");
+#else
+  logMessage(2, "🧹 [LEGACY] Limpiando buffer de datos enviados");
+#endif
 
   std::vector<String> lineas;
+  lineas.reserve(MAX_LINEAS);  // 🆕 FIX-11: Reserva explícita
+  
   File f = LittleFS.open(ARCHIVO_BUFFER, "r");
+  if (!f) return;
 
-  while (f.available()) {
+  while (f.available() && lineas.size() < MAX_LINEAS + 5) {  // 🆕 FIX-11: Límite superior
     String l = f.readStringUntil('\n');
     l.trim();
     if (!l.startsWith("#ENVIADO")) {
@@ -1754,12 +1851,41 @@ void limpiarEnviados() {
   }
   f.close();
 
-  // Reescribir archivo solo con datos pendientes
-  f = LittleFS.open(ARCHIVO_BUFFER, "w");
-  for (String l : lineas) f.println(l);
+#if ENABLE_FIX11_ATOMIC_BUFFER
+  // 🆕 FIX-11: Escritura ATÓMICA usando patrón write-to-temp + rename
+  const char* TMP = "/buffer.tmp";
+  f = LittleFS.open(TMP, "w");
+  if (!f) {
+    logMessage(0, "[FIX-11] Error crítico: no se pudo crear archivo temporal");
+    logMessage(1, "[FIX-11] Fallback: usando escritura directa");
+    // Premisa #3: Fallback a lógica legacy
+    f = LittleFS.open(ARCHIVO_BUFFER, "w");
+    if (!f) return;
+    for (const String& l : lineas) f.println(l);
+    f.close();
+    return;
+  }
+  
+  for (const String& l : lineas) {
+    f.println(l);
+  }
   f.close();
-
+  
+  // Reemplazo atómico
+  LittleFS.remove(ARCHIVO_BUFFER);
+  LittleFS.rename(TMP, ARCHIVO_BUFFER);
+  
+  logMessage(2, String("[FIX-11] ✅ Buffer limpio. Datos pendientes: ") + 
+             lineas.size() + " líneas");
+  
+#else
+  // Lógica LEGACY v4.4.10: escritura directa
+  f = LittleFS.open(ARCHIVO_BUFFER, "w");
+  for (const String& l : lineas) f.println(l);
+  f.close();
+  
   logMessage(2, "✅ Buffer limpio. Datos pendientes: " + String(lineas.size()) + " líneas");
+#endif
 }
 
 /**

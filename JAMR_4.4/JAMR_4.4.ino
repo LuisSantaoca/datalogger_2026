@@ -39,12 +39,12 @@ Cronometro cronometroDispositivo;
 bool g_had_crash = false;
 
 // 🆕 FIX-007: Etiqueta de versión para logs y health tracking
-const char* FIRMWARE_VERSION_TAG = "v4.4.10";
+const char* FIRMWARE_VERSION_TAG = "v4.4.11 timeout coordinado";
 
 // 🆕 REQ-004: Versionamiento semántico para payload
 const uint8_t FIRMWARE_VERSION_MAJOR = 4;
 const uint8_t FIRMWARE_VERSION_MINOR = 4;
-const uint8_t FIRMWARE_VERSION_PATCH = 10;
+const uint8_t FIRMWARE_VERSION_PATCH = 11;
 
 // =============================================================================
 // CONFIGURACIÓN DEL SISTEMA

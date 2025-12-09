@@ -1,0 +1,290 @@
+# 📘 **DOCUMENTO INTEGRADO DE REQUISITOS MAYORES DEL SISTEMA EMBEBIDO**
+
+**Versión:** 2.0
+**Proyecto:** Datalogger ESP32-S3 + SIM7080 para agricultura inteligente
+**Propósito:** Definir el comportamiento obligatorio del sistema embebido para asegurar **lectura continua, almacenamiento seguro, transmisión eficiente, resiliencia energética y modularidad extrema**.
+
+---
+
+# 0. **Principios Rectores del Sistema**
+
+## **PRINC-01 — Prioridad absoluta a adquisición + almacenamiento**
+
+Mientras el sistema esté energizado, **el almacenamiento local de datos tendrá prioridad sobre la transmisión**, sin excepción. Ninguna falla de red, energía o módem podrá interrumpir la captura y persistencia de datos.
+
+## **PRINC-02 — Continuidad operativa aun en fallos críticos**
+
+El sistema deberá **seguir leyendo y almacenando datos incluso en fallos severos** (sin red, módem corrupto, reconexión fallida, reinicios, etc.) sin comprometer la integridad de datos.
+
+## **PRINC-03 — Diseño modular y escalable**
+
+La arquitectura deberá permitir **integrar nuevos sensores RS-485, I²C, 1-Wire, ADC u otros sin refactorizar el núcleo** de adquisición, almacenamiento o transmisión.
+
+---
+
+# 1. **Requisitos funcionales – Adquisición**
+
+## **RF-01 — Lectura continua de sensores RS-485**
+
+**Mientras** el bus RS-485 esté operativo,
+**el subsistema de adquisición del ESP32-S3**
+**deberá**
+**leer**
+**cada medición de cada sensor Modbus**,
+**si y solo si** responden frames válidos,
+**criterio:** tasa mínima de éxito del 98 % en 3 intentos consecutivos.
+(Drivers RS-485 y líneas A/B validadas contra esquemático modelo6) 
+
+---
+
+## **RF-02 — Lectura continua de sensores locales (ADC, GPIO, I²C)**
+
+**Mientras** exista un ciclo de lectura programado por RTC,
+**el subsistema local de adquisición**
+**deberá**
+**capturar**
+**cada sensor conectado (E/S1, ADC, DHT-ADC1, etc.)**,
+**independientemente** del estado del módem,
+**criterio:** la transmisión no podrá bloquear adquisición más de 50 ms por ciclo.
+
+---
+
+## **RF-03 — Interfaz abstracta para sensores (modularidad total)**
+
+**El sistema de firmware**
+**deberá**
+**proveer**
+**una interfaz unificada de sensor** (init, read, validate, pack)
+**para permitir integrar nuevos sensores** sin modificar el núcleo,
+**criterio:** la adición de un nuevo sensor no deberá cambiar más del 5 % del código del core.
+
+---
+
+# 2. **Requisitos funcionales – Almacenamiento (núcleo del sistema)**
+
+## **RF-04 — Almacenamiento transaccional de mediciones**
+
+**Después de que** se obtenga una medición válida,
+**el subsistema de almacenamiento**
+**deberá**
+**escribir atómicamente**
+**un registro con:** timestamp RTC, sensor ID, valor, calidad y número de intento,
+**criterio:** ninguna operación podrá corromper registros previos.
+
+---
+
+## **RF-05 — Logs críticos persistentes**
+
+**Cuando** ocurra un fallo crítico (watchdog, brown-out, módem, RS-485),
+**el subsistema de registro**
+**deberá**
+**almacenar**
+**un log crítico** con contexto mínimo,
+**criterio:** conservar al menos los últimos 10 eventos, aun tras reinicios.
+
+---
+
+## **RF-06 — Modo "solo adquisición y almacenamiento" por baja batería**
+
+**Si** el nivel de batería cae por debajo del **Umbral de Transmisión Segura (UTS)**,
+**el subsistema de energía**
+**deberá**
+**desactivar el módem**
+**y mantener únicamente adquisición + almacenamiento**,
+**criterio:** operar mínimo 24 h en este modo sin perder datos.
+
+---
+
+# 3. **Requisitos funcionales – Transmisión (subordinada al almacenamiento)**
+
+## **RF-07 — Transmisión no bloqueante**
+
+**Si** el módem tiene red y la batería > UTS,
+**el subsistema de comunicaciones**
+**deberá**
+**transmitir**
+**los datos pendientes sin bloquear adquisición**,
+**criterio:** fallas de módem no deben impedir almacenamiento continuo.
+
+---
+
+## **RF-08 — Política de borrado solo tras ACK**
+
+**Después de que** el servidor confirme recepción,
+**el sistema**
+**deberá**
+**eliminar únicamente** los registros confirmados,
+**criterio:** ningún dato podrá borrarse sin confirmación explícita.
+
+---
+
+## **RF-09 — Reanudación de transmisión condicionada a recuperación de carga**
+
+**Después de que** la batería supere UTS durante un periodo estable (ej. 10 min),
+**el subsistema de energía**
+**deberá**
+**autorizar**
+la reactivación del módem,
+**criterio:** evitar ciclos rápidos ON/OFF del SIM7080 (basado en diseño modelo6) 
+
+---
+
+# 4. **Requisitos funcionales – Selección inteligente de operador celular**
+
+## **RF-10 — Descubrimiento de operadores disponibles**
+
+**Cuando** el módem SIM7080 encienda,
+**el subsistema de comunicaciones**
+**deberá**
+**solicitar la lista de operadores disponibles**,
+**criterio:** completar el escaneo en < 60 s.
+
+---
+
+## **RF-11 — Conexión prioritaria con operador previamente exitoso**
+
+**Si** existe un operador preferido en memoria persistente
+**y** se detecta su disponibilidad,
+**el sistema**
+**deberá**
+**intentar conectarse primero a ese operador**,
+**criterio:** evitar escaneos repetidos innecesarios para ahorrar energía.
+
+---
+
+## **RF-12 — Selección del mejor operador si el preferido falla**
+
+**Si** el intento de conexión falla
+**y** hay múltiples operadores,
+**el sistema**
+**deberá**
+**evaluar**
+RSSI, estabilidad y disponibilidad
+**y seleccionar el más adecuado**,
+**criterio:** el algoritmo deberá limitar consultas de señal para no comprometer consumo energético.
+
+---
+
+## **RF-13 — Memorización persistente del operador exitoso**
+
+**Después de que** se establezca una conexión exitosa,
+**el subsistema de comunicaciones**
+**deberá**
+**almacenar en memoria persistente** el operador usado,
+**criterio:** tras reinicio completo, el sistema deberá intentar conectarse primero a ese operador.
+
+---
+
+## **RF-14 — Limitación energética de escaneos de operador**
+
+**En caso de que** sea necesario escanear operadores,
+**el sistema**
+**deberá**
+**limitar** la frecuencia de escaneos completos,
+**criterio:** máximo 3 escaneos/día salvo eventos excepcionales.
+
+---
+
+# 5. **Requisitos funcionales – Recuperación y resiliencia**
+
+## **RF-15 — Autorestablecimiento controlado**
+
+**Si** ocurre un estado crítico (módem colgado, RS-485 sin respuesta, fallos repetidos),
+**el subsistema de supervisión**
+**deberá**
+**ejecutar un protocolo de recuperación**
+(restaurar UART, reiniciar módem, reinicio parcial o total),
+**criterio:** recuperar modo adquisición + almacenamiento en <120 s conservando datos.
+
+---
+
+## **RF-16 — Extracción de datos y logs por puerto serie**
+
+**Cuando** un operador ingrese al modo mantenimiento por serial,
+**el subsistema de diagnóstico**
+**deberá**
+**exportar**
+todos los datos almacenados + los logs críticos
+**sin borrar** la memoria interna,
+**criterio:** extracción completa posible incluso con módem dañado.
+
+---
+
+## **RF-17 — Consulta interactiva del estado del sistema por serial**
+
+**Mientras** el modo mantenimiento esté activo,
+**el sistema**
+**deberá**
+**proveer comandos** para consultar batería, RTC, tamaño de memoria usada, estado del módem, cola de transmisión,
+**criterio:** respuesta < 2 s por comando.
+
+---
+
+# 6. **Requisitos no funcionales – Energía, disponibilidad y seguridad**
+
+## **RNF-01 — Consumo mínimo en deep sleep**
+
+El sistema deberá mantenerse por debajo de 300 µA en deep-sleep, conservando RTC y memoria.
+
+---
+
+## **RNF-02 — Protección ante fluctuaciones (brown-out)**
+
+**Si** el voltaje cae bajo el Umbral Mínimo Operativo (UMO),
+**el sistema**
+**deberá**
+**entrar** en modo seguro,
+**criterio:** ninguna escritura en memoria podrá quedar incompleta.
+
+---
+
+## **RNF-03 — Cifrado de datos**
+
+Todo envío deberá ir cifrado (TLS 1.2+).
+**Criterio:** handshake < 8 s en 80 % de pruebas.
+
+---
+
+# 7. **Requisitos de interfaz (hardware/firmware)**
+
+## **RI-01 — UART ESP32 ↔ SIM7080**
+
+**Cuando** el sistema inicializa,
+**deberá** configurar UART1 (115200 8N1)
+**y completar la secuencia correcta de PowerKey** documentada por SIMCom,
+**criterio:** módem responde `AT` < 500 ms.
+(Basado en Q1/Q2 del esquemático SIM7080) 
+
+---
+
+## **RI-02 — Control DE/RE RS-485**
+
+**Mientras** RS-485 esté activo,
+el sistema deberá administrar DE/RE mediante IO16/IO15
+**criterio:** switching DE↔RE < 10 µs.
+
+---
+
+# 8. **Requisitos ambientales**
+
+## **REA-01 — Operación rural extrema**
+
+El sistema deberá operar en:
+
+* Temperatura: –10 °C a 60 °C
+* Humedad: 5–95 %
+  **criterio:** funcionamiento continuo ≥ 30 días sin intervención.
+
+---
+
+# ✔️ **DOCUMENTO INTEGRADO COMPLETO – LISTO PARA USO EN SRS IEEE 29148**
+
+Si quieres, ahora puedo generarte:
+
+### ✔️ 1. **El SRS completo en formato IEEE 29148** (con secciones, glosarios, restricciones, supuestos).
+
+### ✔️ 2. **La arquitectura formal del firmware** (máquina de estados + módulos + colas + drivers).
+
+### ✔️ 3. **El modelo SysML de requisitos** (diagrama de requisitos + trazabilidad).
+
+¿Qué deseas como siguiente paso?

@@ -123,6 +123,18 @@ uint32_t remainingCommunicationCycleBudget();
 bool ensureCommunicationBudget(const char* contextTag);
 
 // =============================================================================
+// FIX-11: TIMEOUT COORDINADO Y BUFFER RESILIENTE
+// =============================================================================
+
+// Feature flags para control granular y rollback rápido (Premisa #4)
+#define ENABLE_FIX11_COORDINATED_TIMEOUT true   // Timeout coordinado con FIX-6
+#define ENABLE_FIX11_ATOMIC_BUFFER true         // Buffer con operaciones atómicas
+#define ENABLE_FIX11_HEALTH_IMPROVEMENTS true   // Mejoras en health recovery
+
+// Constante para reservar tiempo al final del ciclo
+static const uint32_t FIX11_RESERVE_FOR_REST_MS = 30000UL;  // 30s reservados
+
+// =============================================================================
 // ESTRUCTURAS DE DATOS
 // =============================================================================
 

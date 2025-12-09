@@ -29,6 +29,12 @@ void modemHealthRegisterTimeout(const char* contextTag) {
 bool modemHealthAttemptRecovery(const char* contextTag) {
   const char* tag = (contextTag && contextTag[0] != '\0') ? contextTag : FIX8_DEFAULT_CONTEXT;
 
+#if ENABLE_FIX11_HEALTH_IMPROVEMENTS
+  logMessage(2, "[FIX-11] Health recovery con lógica mejorada (Fase 3)");
+#else
+  logMessage(2, "[LEGACY] Health recovery con lógica v4.4.10");
+#endif
+
   if (g_modem_recovery_attempted) {
     logMessage(1, String("[FIX-8] Recuperación profunda ya ejecutada; se mantiene estado de fallo en ") + tag);
     return false;
@@ -39,8 +45,20 @@ bool modemHealthAttemptRecovery(const char* contextTag) {
     return false;
   }
 
+#if ENABLE_FIX11_HEALTH_IMPROVEMENTS
+  // 🆕 FIX-11: NO activar flag prematuramente (Premisa #1: coherencia estado)
+  logMessage(1, String("[FIX-11] Intentando recuperación profunda en ") + tag + " (sin activar flag aún)");
+#else
+  // LEGACY v4.4.10: activa flag ANTES de intentar
   g_modem_recovery_attempted = true;
   logMessage(1, String("[FIX-8] Intentando recuperación profunda tras detectar estado zombie en ") + tag);
+#endif
+
+#if ENABLE_FIX11_HEALTH_IMPROVEMENTS
+  // 🆕 FIX-11: Guardar estado previo para rollback
+  modem_health_state_t prev_state = g_modem_health_state;
+  uint8_t prev_timeouts = g_modem_timeouts_critical;
+#endif
 
   bool ok = true;
 
@@ -70,6 +88,21 @@ bool modemHealthAttemptRecovery(const char* contextTag) {
     ok = false;
   }
 
+#if ENABLE_FIX11_HEALTH_IMPROVEMENTS
+  // 🆕 FIX-11: Activar flag SOLO si comandos exitosos
+  if (ok) {
+    g_modem_recovery_attempted = true;  // Flag activado DESPUÉS del éxito
+    g_modem_health_state = MODEM_HEALTH_TRYING;
+    g_modem_timeouts_critical = 0;
+    logMessage(2, "[FIX-11] ✅ Recuperación profunda completada exitosamente");
+  } else {
+    // Rollback básico: restaurar estado previo si comandos fallan
+    g_modem_health_state = prev_state;
+    g_modem_timeouts_critical = prev_timeouts;
+    logMessage(0, "[FIX-11] ❌ Recuperación falló; estado restaurado para permitir reintento controlado");
+  }
+#else
+  // LEGACY v4.4.10: sin rollback, flag ya activado
   if (ok) {
     g_modem_health_state = MODEM_HEALTH_TRYING;
     g_modem_timeouts_critical = 0;
@@ -78,6 +111,7 @@ bool modemHealthAttemptRecovery(const char* contextTag) {
     g_modem_health_state = MODEM_HEALTH_FAILED;
     logMessage(0, "[FIX-8] Recuperación profunda falló, marcando ciclo como fallo");
   }
+#endif
 
   return ok;
 }
