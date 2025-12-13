@@ -14,6 +14,11 @@
 #include <AHT10.h>
 #include <AHT20.h>
 
+// 🆕 FIX-12: Declarar variables RTC externas para filtro de batería
+extern RTC_DATA_ATTR float rtc_battery_history[5];
+extern RTC_DATA_ATTR uint8_t rtc_battery_index;
+extern RTC_DATA_ATTR uint8_t rtc_battery_count;
+
 EspSoftwareSerial::UART sonda;
 AHT10 myAHT10(0x38);
 AHT20 myAHT20;
@@ -475,13 +480,30 @@ void readBateria() {
   int promedio = suma / lecturasValidas;
   float voltaje = (promedio * 2 * 3.3) / 4095;
   
+  // 🆕 FIX-12: Filtro de media móvil entre ciclos deep sleep
+  // Agregar lectura actual al historial circular
+  rtc_battery_history[rtc_battery_index] = voltaje;
+  rtc_battery_index = (rtc_battery_index + 1) % 5;
+  if (rtc_battery_count < 5) rtc_battery_count++;
+  
+  // Calcular promedio del historial
+  float suma_historial = 0;
+  for (uint8_t i = 0; i < rtc_battery_count; i++) {
+    suma_historial += rtc_battery_history[i];
+  }
+  float voltaje_filtrado = suma_historial / rtc_battery_count;
+  
+  // Usar voltaje filtrado para cálculos
+  voltaje = voltaje_filtrado;
+  
   // Validar rango de voltaje
   if (voltaje < 2.0 || voltaje > 4.5) {
     Serial.println("⚠️ ADVERTENCIA: Batería - Voltaje fuera de rango normal");
     Serial.print("Voltaje: "); Serial.print(voltaje, 2); Serial.println("V");
   }
   
-  int ajustes = (voltaje + 0.3) * 100;
+  // 🆕 FIX-12: Sin offset arbitrario, voltaje real
+  int ajustes = voltaje * 100;
   H_bateria = highByte(ajustes);
   L_bateria = lowByte(ajustes);
   

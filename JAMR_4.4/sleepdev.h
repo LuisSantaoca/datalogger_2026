@@ -78,6 +78,11 @@ extern RTC_DATA_ATTR uint16_t rtc_boot_count;           // Contador total de boo
 extern RTC_DATA_ATTR uint8_t rtc_crash_reason;          // Razón del último reset
 extern RTC_DATA_ATTR uint32_t rtc_last_success_time;    // Época de última transmisión exitosa
 
+// 🆕 FIX-12: Variables persistentes para filtro de media móvil de batería
+extern RTC_DATA_ATTR float rtc_battery_history[5];      // Historial últimas 5 lecturas
+extern RTC_DATA_ATTR uint8_t rtc_battery_index;         // Índice circular del historial
+extern RTC_DATA_ATTR uint8_t rtc_battery_count;         // Contador de lecturas válidas
+
 /**
  * RAZONES DE RESET
  * 

@@ -23,6 +23,11 @@ RTC_DATA_ATTR uint16_t rtc_boot_count = 0;         // Contador de boots
 RTC_DATA_ATTR uint8_t rtc_crash_reason = RESET_UNKNOWN;  // Motivo del último reset
 RTC_DATA_ATTR uint32_t rtc_last_success_time = 0;  // Timestamp de última transmisión exitosa
 
+// 🆕 FIX-12: Variables RTC para filtro de media móvil de batería
+RTC_DATA_ATTR float rtc_battery_history[5] = {0, 0, 0, 0, 0};
+RTC_DATA_ATTR uint8_t rtc_battery_index = 0;
+RTC_DATA_ATTR uint8_t rtc_battery_count = 0;
+
 // =============================================================================
 // FUNCIONES DE DIAGNÓSTICO (FIX-004)
 // =============================================================================

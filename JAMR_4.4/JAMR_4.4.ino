@@ -39,12 +39,12 @@ Cronometro cronometroDispositivo;
 bool g_had_crash = false;
 
 // 🆕 FIX-007: Etiqueta de versión para logs y health tracking
-const char* FIRMWARE_VERSION_TAG = "v4.4.11 timeout coordinado";
+const char* FIRMWARE_VERSION_TAG = "v4.4.12 adc-bateria-fix";
 
 // 🆕 REQ-004: Versionamiento semántico para payload
 const uint8_t FIRMWARE_VERSION_MAJOR = 4;
 const uint8_t FIRMWARE_VERSION_MINOR = 4;
-const uint8_t FIRMWARE_VERSION_PATCH = 11;
+const uint8_t FIRMWARE_VERSION_PATCH = 12;
 
 // =============================================================================
 // CONFIGURACIÓN DEL SISTEMA
@@ -67,6 +67,11 @@ void setup() {
   
   // Inicializar comunicación serial para debugging
   Serial.begin(115200);
+  
+  // 🆕 FIX-12: Configurar ADC para lectura correcta de batería
+  analogReadResolution(12);           // Resolución 12 bits (0-4095)
+  analogSetAttenuation(ADC_11db);     // Atenuación 11dB (rango 0-3.3V)
+  pinMode(ADC_VOLT_BAT, INPUT);       // Pin 13 como entrada ADC
   
   // Esperar estabilización del sistema
   delay(1000);
