@@ -270,6 +270,25 @@ bool startLTE();
 bool startLTE_autoLite();
 
 /**
+ * FIX-14: Verifica si un contexto PDP está activo
+ * Envía comando +CNACT? y parsea respuesta para detectar estado del contexto.
+ *
+ * @param context_id - ID del contexto PDP (0-3), default 0
+ * @return true si el contexto está en estado ACTIVE (1), false si DEACTIVE (0) o error
+ */
+bool checkPDPContextActive(int context_id = 0);
+
+/**
+ * FIX-14: Espera activamente que el contexto PDP se active
+ * Realiza validación periódica cada 3 segundos del estado PDP.
+ * Monitorea RSSI cada segundo como diagnóstico secundario.
+ *
+ * @param timeout_ms - Timeout máximo en milisegundos
+ * @return true si PDP se activó antes del timeout, false si timeout o error
+ */
+bool waitForPDPActivation(unsigned long timeout_ms);
+
+/**
  * Limpia todos los buffers de comunicación serial
  * Elimina datos residuales para evitar interferencias
  */

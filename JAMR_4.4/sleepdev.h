@@ -31,7 +31,8 @@
  * Valor: 120 segundos (2 minutos)
  * Justificación: Permite operaciones normales sin falsos positivos
  */
-#define WATCHDOG_TIMEOUT_SEC 120
+// 🆕 FIX-13.3: Reducir watchdog 120s → 90s para detectar bloqueos más rápido
+#define WATCHDOG_TIMEOUT_SEC 90
 
 // =============================================================================
 // 🆕 JAMR_3 FIX-004: SISTEMA DE DIAGNÓSTICO POSTMORTEM

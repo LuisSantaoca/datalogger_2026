@@ -179,6 +179,12 @@ void sleepIOT() {
   // Terminar comunicación I2C para reducir consumo de energía
   // Esto desconecta los sensores y otros dispositivos I2C
   Wire.end();
+  
+  // 🆕 FIX-13.1: Apagar Serial UART antes de sleep para ahorrar ~48mAh/día
+  // UART consume ~2mA durante sleep (1200s × 72 ciclos/día)
+  Serial.flush();  // Vaciar buffer TX antes de apagar
+  Serial.end();    // Desactivar hardware UART
+  // Nota: Serial.begin(115200) en setupGPIO() reinicia UART después de wake
 
   // =============================================================================
   // ACTIVACIÓN DE GPIO HOLD

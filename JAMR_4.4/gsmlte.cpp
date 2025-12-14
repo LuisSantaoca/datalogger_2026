@@ -690,6 +690,96 @@ bool startLTE() {
   return false;
 }
 
+// ============================================
+// FIX-14: VALIDACIÓN ACTIVA DE PDP
+// ============================================
+
+/**
+ * FIX-14: Verifica si un contexto PDP está activo.
+ * Envía comando +CNACT? y parsea la respuesta buscando el patrón:
+ * +CNACT: <context_id>,1,"<IP>"
+ * donde el segundo campo "1" indica estado ACTIVE.
+ *
+ * @param context_id - ID del contexto PDP a verificar (0-3, default 0)
+ * @return true si PDP está en estado ACTIVE, false si DEACTIVE o error
+ */
+bool checkPDPContextActive(int context_id) {
+  String response = "";
+  
+  // Enviar comando +CNACT? con timeout de 3 segundos
+  modem.sendAT("+CNACT?");
+  if (modem.waitResponse(3000UL, response) != 1) {
+    logMessage(3, "[FIX-14] +CNACT? timeout/error, asumiendo inactivo");
+    return false;
+  }
+  
+  // Buscar patrón: +CNACT: X,1, donde X es el context_id
+  // Estado 1 = ACTIVE, 0 = DEACTIVE
+  String searchPattern = "+CNACT: " + String(context_id) + ",1,";
+  
+  if (response.indexOf(searchPattern) >= 0) {
+    logMessage(3, String("[FIX-14] PDP contexto ") + context_id + " ACTIVE");
+    return true;
+  }
+  
+  logMessage(3, String("[FIX-14] PDP contexto ") + context_id + " DEACTIVE");
+  return false;
+}
+
+/**
+ * FIX-14: Espera activamente que el contexto PDP se active.
+ * Realiza validación periódica del estado PDP cada 3 iteraciones (cada 3s).
+ * Sale inmediatamente cuando detecta PDP activo, en lugar de esperar RSSI alto.
+ * Monitorea RSSI cada segundo como diagnóstico secundario.
+ *
+ * @param timeout_ms - Timeout máximo en milisegundos
+ * @return true si PDP se activó antes del timeout, false si timeout
+ */
+bool waitForPDPActivation(unsigned long timeout_ms) {
+  unsigned long startTime = millis();
+  int checkCount = 0;
+  bool pdpActive = false;
+  
+  logMessage(2, String("[FIX-14] Esperando activación PDP (timeout=") + timeout_ms + "ms)");
+  
+  while (millis() - startTime < timeout_ms) {
+    // Verificar presupuesto de comunicación
+    if (!ensureCommunicationBudget("waitForPDPActivation")) {
+      logMessage(1, "[FIX-14] Presupuesto de ciclo agotado durante espera PDP");
+      return false;
+    }
+    
+    checkCount++;
+    esp_task_wdt_reset();
+    
+    // ✅ FIX-14.2: Validar PDP activo cada 3 segundos
+    if (checkCount % 3 == 0) {
+      if (checkPDPContextActive(0)) {  // Contexto 0 (default)
+        unsigned long elapsed = millis() - startTime;
+        logMessage(2, String("[FIX-14] ✅ PDP activado en ") + elapsed + 
+                      "ms (check #" + checkCount + ")");
+        pdpActive = true;
+        break;  // ✅ Salir inmediatamente cuando PDP activo
+      }
+    }
+    
+    // Monitoreo RSSI secundario (diagnóstico)
+    int rssi = modem.getSignalQuality();
+    logMessage(3, String("[FIX-9] AUTO_LITE RSSI: ") + rssi + 
+                  " (espera PDP, check " + checkCount + ")");
+    
+    delay(1000);  // Check cada 1 segundo
+  }
+  
+  if (!pdpActive) {
+    unsigned long elapsed = millis() - startTime;
+    logMessage(1, String("[FIX-14] ⚠️ PDP no se activó después de ") + 
+                  elapsed + "ms (" + checkCount + " checks)");
+  }
+  
+  return pdpActive;
+}
+
 /**
  * FIX-9: Establece una conexión LTE rápida AUTO_LITE.
  * Camino feliz minimalista inspirado en agroMod01_jorge_trino.
@@ -753,49 +843,28 @@ bool startLTE_autoLite() {
     return false;
   }
 
-  // Esperar registro en red LTE con presupuesto acotado.
-  unsigned long t0 = millis();
-  uint32_t maxWaitTime = AUTO_LITE_BUDGET_MS;
-
-  while (millis() - t0 < maxWaitTime) {
-    if (!ensureCommunicationBudget("startLTE_autoLite_wait")) {
-      modemHealthRegisterTimeout("AUTO_LITE_budget");
-      return false;
-    }
-
-    esp_task_wdt_reset();
-    int signalQuality = modem.getSignalQuality();
-    logMessage(3, String("[FIX-9] AUTO_LITE RSSI: ") + signalQuality);
-
-    if (modem.isNetworkConnected()) {
-      uint32_t elapsed = millis() - t0;
-      uint32_t remaining = (elapsed >= maxWaitTime) ? 0 : (maxWaitTime - elapsed);
-      uint32_t cycleRemaining = remainingCommunicationCycleBudget();
-      if (cycleRemaining > 0 && cycleRemaining < remaining) {
-        remaining = cycleRemaining;
-      }
-
-      // Validar PDP sólo dentro del presupuesto restante.
-      if (!ensurePdpActive(remaining)) {
-        logMessage(1, "[FIX-9] AUTO_LITE: registro LTE sin PDP activo");
-        modemHealthRegisterTimeout("AUTO_LITE_ensurePdpActive");
-        if (modemHealthShouldAbortCycle("AUTO_LITE_ensurePdpActive")) {
-          return false;
-        }
-      } else {
-        logMessage(2, "[FIX-9] ✅ AUTO_LITE conectado a LTE con PDP activo");
-        sendATCommand("+CPSI?", "OK", 5000);
-        flushPortSerial();
-        modemHealthMarkOk();
-        return true;
-      }
-    }
-
-    delay(1000);
+  // ✅ FIX-14.3: Validación activa de PDP en lugar de loop RSSI
+  // Timeout reducido de 30s a 20s para detección más rápida de fallos
+  const unsigned long PDP_ACTIVATION_TIMEOUT = 20000UL;  // 20s (vs 30s anterior)
+  
+  if (!waitForPDPActivation(PDP_ACTIVATION_TIMEOUT)) {
+    logMessage(1, "[FIX-14] Timeout esperando PDP, fallback a DEFAULT_CATM");
+    logMessage(1, "[FIX-9] AUTO_LITE timeout: no se logró conexión dentro del presupuesto");
+    modemHealthRegisterTimeout("AUTO_LITE_pdp_timeout");
+    return false;
   }
-
-  logMessage(1, "[FIX-9] AUTO_LITE timeout: no se logró conexión dentro del presupuesto");
-  return false;
+  
+  // ✅ PDP activo detectado, verificar estado de red y finalizar
+  if (modem.isNetworkConnected()) {
+    logMessage(2, "[FIX-9] ✅ AUTO_LITE conectado a LTE con PDP activo");
+    sendATCommand("+CPSI?", "OK", 5000);
+    flushPortSerial();
+    modemHealthMarkOk();
+    return true;
+  } else {
+    logMessage(1, "[FIX-14] PDP activo pero red no conectada (caso anómalo)");
+    return false;
+  }
 }
 
 static void buildOperatorOrder(uint8_t* order, size_t& count) {
@@ -1349,10 +1418,19 @@ bool getGpsSim() {
 
   // Obtener coordenadas GPS con timeouts defensivos (FIX-3)
   const unsigned long GPS_SINGLE_ATTEMPT_TIMEOUT_MS = 5000;
-  const unsigned long GPS_TOTAL_TIMEOUT_MS = 80000;
+  // 🆕 FIX-13.2: Reducir timeout GPS 80s → 30s (95% ciclos exitosos <30s)
+  // Ahorra 50s en ciclos GPS fallidos, usa coords persistidas (FIX-7) como fallback
+  const unsigned long GPS_TOTAL_TIMEOUT_MS = 30000;  // 30s vs 80s
   unsigned long gpsGlobalStart = millis();
 
   for (int i = 0; i < 50; ++i) {
+    // ✅ FIX-15: aplicar timeout global real de 30s antes de cada intento
+    if (millis() - gpsGlobalStart >= GPS_TOTAL_TIMEOUT_MS) {
+      logMessage(1, String("[FIX-15] ⏱️ Timeout GPS global ") + GPS_TOTAL_TIMEOUT_MS +
+                    "ms alcanzado (" + String(i) + " intentos)");
+      break;
+    }
+
     #if ENABLE_WDT_DEFENSIVE_LOOPS
     if (millis() - gpsGlobalStart > GPS_TOTAL_TIMEOUT_MS) {
       logMessage(1, "[FIX-3] ⏱️ Timeout total de GPS tras " + String(i) + " intentos");
@@ -1366,6 +1444,12 @@ bool getGpsSim() {
 
     // Obtener datos GPS del módem SIM con timeout por intento
     while (millis() - attemptStart < GPS_SINGLE_ATTEMPT_TIMEOUT_MS) {
+      // ✅ FIX-15: corte inmediato si el timeout global se alcanzó dentro del intento
+      if (millis() - gpsGlobalStart >= GPS_TOTAL_TIMEOUT_MS) {
+        logMessage(1, String("[FIX-15] ⏱️ Timeout GPS global ") + GPS_TOTAL_TIMEOUT_MS +
+                      "ms alcanzado durante intento " + String(i + 1));
+        break;
+      }
       if (modem.getGPS(&latConverter.f,  // float* lat
                        &lonConverter.f,  // float* lon
                        &gps_speed,       // float* speed
