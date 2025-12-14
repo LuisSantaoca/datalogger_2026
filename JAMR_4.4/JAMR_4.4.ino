@@ -39,12 +39,12 @@ Cronometro cronometroDispositivo;
 bool g_had_crash = false;
 
 // 🆕 FIX-007: Etiqueta de versión para logs y health tracking
-const char* FIRMWARE_VERSION_TAG = "v4.4.15 timeout-gps";
+const char* FIRMWARE_VERSION_TAG = "v4.4.16 default-budget-pdp";
 
 // 🆕 REQ-004: Versionamiento semántico para payload
 const uint8_t FIRMWARE_VERSION_MAJOR = 4;
 const uint8_t FIRMWARE_VERSION_MINOR = 4;
-const uint8_t FIRMWARE_VERSION_PATCH = 15;  // FIX-15: Timeout global real de GPS
+const uint8_t FIRMWARE_VERSION_PATCH = 16;  // FIX-16: Presupuesto DEFAULT y PDP activo
 
 // =============================================================================
 // CONFIGURACIÓN DEL SISTEMA

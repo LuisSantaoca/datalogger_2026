@@ -17,6 +17,9 @@ static bool ensurePdpActive(uint32_t budgetMs);
 
 // FIX-9: Presupuesto de tiempo para el intento rápido AUTO_LITE
 static const uint32_t AUTO_LITE_BUDGET_MS = 30000UL; // 30s máximo para camino rápido
+// FIX-16: Presupuesto recortado para DEFAULT_CATM
+static const uint32_t DEFAULT_CATM_BUDGET_MS = 65000UL; // 65s máximo para camino DEFAULT
+static const uint32_t PDP_ACTIVATION_TIMEOUT_DEFAULT_MS = 20000UL; // Reutilizado en DEFAULT
 
 static const uint32_t PDP_VALIDATION_MIN_BUDGET_MS = 4000UL;
 static const uint32_t PDP_VALIDATION_MAX_SLICE_MS = 20000UL;
@@ -24,7 +27,7 @@ static const uint32_t PDP_VALIDATION_MAX_SLICE_MS = 20000UL;
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
 // Tabla de perfiles de operador. Ajustar según resultados de campo.
 static const OperatorProfile OP_PROFILES[] = {
-  { "DEFAULT_CATM", MODEM_NETWORK_MODE, CAT_M,  "em", 90000UL, 0 },
+  { "DEFAULT_CATM", MODEM_NETWORK_MODE, CAT_M,  "em", DEFAULT_CATM_BUDGET_MS, 0 },
   { "NB_IOT_FALLBACK", MODEM_NETWORK_MODE, NB_IOT, "em", 30000UL, 1 },
 };
 static const size_t OP_PROFILES_COUNT = sizeof(OP_PROFILES) / sizeof(OP_PROFILES[0]);
@@ -42,7 +45,7 @@ static bool tryConnectOperator(const OperatorProfile& profile, uint32_t allowedM
 static void buildOperatorOrder(uint8_t* order, size_t& count);
 #else
 static const size_t OP_PROFILES_COUNT = 0; // Evita warnings cuando el flag está apagado
-static uint32_t g_lte_max_wait_ms = 120000UL;
+static uint32_t g_lte_max_wait_ms = DEFAULT_CATM_BUDGET_MS;
 #endif
 
 // =============================================================================
@@ -635,16 +638,22 @@ bool startLTE() {
     return false;
   }
 
-  // Esperar conexión a la red
-  unsigned long t0 = millis();
-  unsigned long maxWaitTime = 120000;  // 🆕 FIX-4.1.1: 120s para zonas de señal baja (antes 60s)
+  // 🆕 FIX-16: Validar PDP activo antes de esperar red, con presupuesto acotado
+  unsigned long maxWaitTime = g_lte_max_wait_ms > 0 ? g_lte_max_wait_ms : DEFAULT_CATM_BUDGET_MS;
 #if ENABLE_MULTI_OPERATOR_EFFICIENT
-  // En modo multi-operador, g_lte_max_wait_ms define el máximo
-  // absoluto para este perfil (presupuesto ya recortado en tryConnectOperator).
-  if (g_lte_max_wait_ms > 0 && g_lte_max_wait_ms < maxWaitTime) {
-    maxWaitTime = g_lte_max_wait_ms;
-  }
+  // En modo multi-operador, g_lte_max_wait_ms ya viene recortado por perfil
 #endif
+  const unsigned long pdpBudget = (PDP_ACTIVATION_TIMEOUT_DEFAULT_MS < maxWaitTime)
+                                    ? PDP_ACTIVATION_TIMEOUT_DEFAULT_MS
+                                    : maxWaitTime;
+
+  unsigned long t0 = millis();
+
+  if (!waitForPDPActivation(pdpBudget)) {
+    logMessage(1, "[FIX-16] PDP no activo en DEFAULT_CATM; abortando perfil");
+    modemHealthRegisterTimeout("DEFAULT_CATM_pdp_timeout");
+    return false;
+  }
 
   while (true) {
     unsigned long now = millis();
@@ -661,26 +670,17 @@ bool startLTE() {
     logMessage(3, "📶 Calidad de señal: " + String(signalQuality));
 
     if (modem.isNetworkConnected()) {
-      uint32_t elapsed = millis() - t0;
-      uint32_t remaining = (elapsed >= maxWaitTime) ? 0 : (maxWaitTime - elapsed);
-      uint32_t cycleRemaining = remainingCommunicationCycleBudget();
-      if (cycleRemaining > 0 && cycleRemaining < remaining) {
-        remaining = cycleRemaining;
+      if (!checkPDPContextActive(0)) {
+        logMessage(1, "[FIX-16] Conectado LTE pero PDP inactivo en DEFAULT_CATM");
+        modemHealthRegisterTimeout("DEFAULT_CATM_pdp_inactive");
+        return false;
       }
 
-      if (!ensurePdpActive(remaining)) {
-        logMessage(1, "[FIX-5] Registro LTE sin PDP activo, reintentando dentro del presupuesto");
-        modemHealthRegisterTimeout("startLTE_ensurePdpActive"); // 🆕 FIX-8
-        if (modemHealthShouldAbortCycle("startLTE_ensurePdpActive")) {
-          return false;
-        }
-      } else {
-        logMessage(2, "✅ Conectado a la red LTE con PDP activo");
-        sendATCommand("+CPSI?", "OK", getAdaptiveTimeout());
-        flushPortSerial();
-        modemHealthMarkOk(); // 🆕 FIX-8: se logró conexión LTE estable
-        return true;
-      }
+      logMessage(2, "✅ Conectado a la red LTE con PDP activo");
+      sendATCommand("+CPSI?", "OK", getAdaptiveTimeout());
+      flushPortSerial();
+      modemHealthMarkOk(); // 🆕 FIX-8: se logró conexión LTE estable
+      return true;
     }
 
     delay(1000);
