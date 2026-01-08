@@ -27,7 +27,8 @@
 #include <esp_sleep.h>
 #include <Preferences.h>
 #include "AppController.h"
-#include "version_info.h"  // FEAT-V0: Sistema de control de versiones centralizado
+#include "src/version_info.h"   // FEAT-V0: Sistema de control de versiones centralizado
+#include "src/FeatureFlags.h"   // FEAT-V1: Sistema de feature flags
 #include "src/DebugConfig.h"
 
 #include "src/data_buffer/BUFFERModule.h"
@@ -374,7 +375,13 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
     Serial.println(OPERADORAS[operadoraAUsar].nombre);
   }
 
+#if ENABLE_FIX_V1_SKIP_RESET_PDP
+  // ============ [FIX-V1 START] Si tiene operadora guardada, skip reset ============
+  if (!lte.configureOperator(operadoraAUsar, tieneOperadoraGuardada)) { lte.powerOff(); return false; }
+  // ============ [FIX-V1 END] ============
+#else
   if (!lte.configureOperator(operadoraAUsar))   { lte.powerOff(); return false; }
+#endif
   if (!lte.attachNetwork())                     { lte.powerOff(); return false; }
   if (!lte.activatePDP())                       { lte.powerOff(); return false; }
   if (!lte.openTCPConnection())                 { lte.deactivatePDP(); lte.powerOff(); return false; }
@@ -505,6 +512,10 @@ void AppInit(const AppConfig& cfg) {
   // ============ [FEAT-V0 START] Imprimir versión al iniciar ============
   printFirmwareVersion();
   // ============ [FEAT-V0 END] ============
+
+  // ============ [FEAT-V1 START] Imprimir feature flags activos ============
+  printActiveFlags();
+  // ============ [FEAT-V1 END] ============
 
   sleepModule.begin();
   g_wakeupCause = sleepModule.getWakeupCause();

@@ -10,9 +10,10 @@
 | **Tipo** | Fix (Corrección de Bug) |
 | **Sistema** | LTE/Modem |
 | **Archivo Principal** | `src/data_lte/LTEModule.cpp` |
-| **Estado** | 📋 Propuesto |
+| **Estado** | ✅ Completado |
 | **Fecha Identificación** | 2026-01-07 |
-| **Versión Target** | v2.0.1 |
+| **Fecha Implementación** | 2026-01-07 |
+| **Versión** | v2.0.2 |
 | **Depende de** | FEAT-V1 (FeatureFlags.h) |
 | **Prioridad** | Media-Alta |
 
@@ -37,7 +38,7 @@ En el dashboard de la operadora se observan múltiples eventos PDP en el mismo m
 
 ### Ubicación del Bug
 **Archivo:** `src/data_lte/LTEModule.cpp`  
-**Línea:** 327  
+**Línea:** 326  
 
 ```cpp
 bool LTEModule::configureOperator(Operadora operadora) {
@@ -95,7 +96,7 @@ Agregar parámetro `skipReset` a `configureOperator()` para omitir el reset cuan
 ### Cambio 1: LTEModule.h
 
 **Archivo:** `src/data_lte/LTEModule.h`  
-**Línea aproximada:** 82  
+**Línea:** 84  
 
 ```cpp
 // ANTES
@@ -118,7 +119,7 @@ bool configureOperator(Operadora operadora);
 ### Cambio 2: LTEModule.cpp
 
 **Archivo:** `src/data_lte/LTEModule.cpp`  
-**Línea:** 326-328  
+**Línea:** 326-327  
 
 ```cpp
 // ANTES
@@ -147,7 +148,7 @@ bool LTEModule::configureOperator(Operadora operadora) {
 ### Cambio 3: AppController.cpp
 
 **Archivo:** `AppController.cpp`  
-**Línea:** 376  
+**Línea:** 378  
 
 ```cpp
 // ANTES
