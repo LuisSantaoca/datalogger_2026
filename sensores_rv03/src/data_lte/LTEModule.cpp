@@ -1,4 +1,5 @@
 #include "LTEModule.h"
+#include "../FeatureFlags.h"  // FEAT-V1: Feature flags
 #include <string.h>
 #include <stdlib.h>
 
@@ -323,8 +324,19 @@ uint8_t LTEModule::getICCIDBytes(uint8_t* buffer, uint8_t maxLen) {
     return len;
 }
 
-bool LTEModule::configureOperator(Operadora operadora) {
+#if ENABLE_FIX_V1_SKIP_RESET_PDP
+bool LTEModule::configureOperator(Operadora operadora, bool skipReset) {
+    // ============ [FIX-V1 START] Skip reset cuando hay operadora guardada ============
+    if (!skipReset) {
         resetModem();
+    } else {
+        debugPrint("Saltando reset del modem (skipReset=true)");
+    }
+    // ============ [FIX-V1 END] ============
+#else
+bool LTEModule::configureOperator(Operadora operadora) {
+    resetModem();
+#endif
     if (operadora >= NUM_OPERADORAS) {
         debugPrint("Error: Operadora invalida");
         return false;

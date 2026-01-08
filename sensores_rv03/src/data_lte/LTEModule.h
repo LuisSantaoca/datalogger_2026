@@ -5,6 +5,7 @@
 #include <HardwareSerial.h>
 #include "config_data_lte.h"
 #include "config_operadoras.h"
+#include "../FeatureFlags.h"  // FEAT-V1: Feature flags
 
 struct SignalQuality {
     Operadora operadora;
@@ -79,9 +80,16 @@ public:
     /**
      * @brief Configure network for specific operator
      * @param operadora Operator enum
+#if ENABLE_FIX_V1_SKIP_RESET_PDP
+     * @param skipReset If true, skips modem reset (use when modem just powered on)  // FIX-V1
+#endif
      * @return true if configuration successful, false otherwise
      */
+#if ENABLE_FIX_V1_SKIP_RESET_PDP
+    bool configureOperator(Operadora operadora, bool skipReset = false);  // FIX-V1
+#else
     bool configureOperator(Operadora operadora);
+#endif
 
     /**
      * @brief Attach to network (CGATT)

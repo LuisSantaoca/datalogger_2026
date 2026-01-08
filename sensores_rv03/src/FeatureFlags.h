@@ -35,9 +35,9 @@
  * Archivo: LTEModule.cpp, LTEModule.h, AppController.cpp
  * Descripción: Evita resetModem() cuando ya hay operadora guardada,
  *              reduciendo eventos PDP de 3+ a 1 por ciclo.
- * Estado: Pendiente implementación
+ * Estado: Implementado
  */
-#define ENABLE_FIX_V1_SKIP_RESET_PDP    0
+#define ENABLE_FIX_V1_SKIP_RESET_PDP    1
 
 /**
  * FIX-V2: [Reservado]

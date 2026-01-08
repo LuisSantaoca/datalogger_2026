@@ -375,7 +375,13 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
     Serial.println(OPERADORAS[operadoraAUsar].nombre);
   }
 
+#if ENABLE_FIX_V1_SKIP_RESET_PDP
+  // ============ [FIX-V1 START] Si tiene operadora guardada, skip reset ============
+  if (!lte.configureOperator(operadoraAUsar, tieneOperadoraGuardada)) { lte.powerOff(); return false; }
+  // ============ [FIX-V1 END] ============
+#else
   if (!lte.configureOperator(operadoraAUsar))   { lte.powerOff(); return false; }
+#endif
   if (!lte.attachNetwork())                     { lte.powerOff(); return false; }
   if (!lte.activatePDP())                       { lte.powerOff(); return false; }
   if (!lte.openTCPConnection())                 { lte.deactivatePDP(); lte.powerOff(); return false; }
