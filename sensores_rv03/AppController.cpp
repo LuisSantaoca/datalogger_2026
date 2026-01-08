@@ -27,7 +27,7 @@
 #include <esp_sleep.h>
 #include <Preferences.h>
 #include "AppController.h"
-#include "version_info.h"
+#include "version_info.h"  // FEAT-V0: Sistema de control de versiones centralizado
 #include "src/DebugConfig.h"
 
 #include "src/data_buffer/BUFFERModule.h"
@@ -502,8 +502,9 @@ void AppInit(const AppConfig& cfg) {
   Serial.begin(115200);
   delay(200);
 
-  // Imprimir versión del firmware al iniciar
+  // ============ [FEAT-V0 START] Imprimir versión al iniciar ============
   printFirmwareVersion();
+  // ============ [FEAT-V0 END] ============
 
   sleepModule.begin();
   g_wakeupCause = sleepModule.getWakeupCause();

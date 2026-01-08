@@ -22,12 +22,18 @@
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
+ * 
+ * Formato: VERSION | FECHA | NOMBRE | DESCRIPCIÓN
+ *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
 // v2.0.0  | 2025-12-18 | release-inicial     | Versión inicial con arquitectura FSM
+//         | 2026-01-07 | +version-control    | FEAT-V0: Sistema de control de versiones centralizado
+//         |            |                     | Cambios: version_info.h(nuevo), AppController.cpp(L30,L506)
 // --------|------------|---------------------|------------------------------------------
-// PRÓXIMAS VERSIONES:
-// v2.0.1  | PENDIENTE  | pdp-fix             | Fix: Reducir eventos PDP redundantes
+// PENDIENTES:
+// v2.0.1  | PENDIENTE  | pdp-fix             | FIX-V1: Reducir eventos PDP redundantes
+//         |            |                     | Ver: fixs/fix_v1_pdp_redundante/
 // v2.1.0  | PENDIENTE  | gps-retry           | Feature: Reintentar GPS si falla
 
 /*******************************************************************************
