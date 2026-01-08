@@ -29,6 +29,7 @@
 #include "AppController.h"
 #include "src/version_info.h"   // FEAT-V0: Sistema de control de versiones centralizado
 #include "src/FeatureFlags.h"   // FEAT-V1: Sistema de feature flags
+#include "src/CycleTiming.h"    // FEAT-V2: Sistema de timing de ciclos
 #include "src/DebugConfig.h"
 
 #include "src/data_buffer/BUFFERModule.h"
@@ -162,6 +163,11 @@ static String g_varStr[VAR_COUNT];
 
 /** @brief Buffer para trama completa codificada en Base64 */
 static char g_frame[FRAME_BASE64_MAX_LEN];
+
+#if ENABLE_FEAT_V2_CYCLE_TIMING
+/** @brief Estructura global para timing de ciclo (FEAT-V2) */
+static CycleTiming g_timing;
+#endif
 
 /**
  * @brief Rellena un buffer con caracteres '0' y agrega terminador nulo
@@ -613,12 +619,14 @@ void AppLoop() {
   switch (g_state) {
     case AppState::BleOnly: {
       if (!ble.isActive()) {
+        TIMING_RESET(g_timing);  // Inicia timing del ciclo cuando termina BLE
         g_state = AppState::Cycle_ReadSensors;
       }
       break;
     }
 
     case AppState::Cycle_ReadSensors: {
+      TIMING_START(g_timing, sensors);
       String vBat;
       if (!readADC_DiscardAndAverage(vBat)) vBat = "0";
 
@@ -636,12 +644,14 @@ void AppLoop() {
       g_varStr[4] = vTemp;
       g_varStr[5] = vHum;
       g_varStr[6] = vBat;
+      TIMING_END(g_timing, sensors);
 
       if (g_firstCycleAfterBoot) {
         Serial.println("[INFO][APP] Primer ciclo: leyendo GPS");
         g_state = AppState::Cycle_Gps;
         g_firstCycleAfterBoot = false;
       } else {
+        TIMING_START(g_timing, nvsGps);
         Serial.println("[INFO][APP] Ciclo subsecuente: recuperando coordenadas GPS de NVS");
         
         preferences.begin("sensores", true);
@@ -668,13 +678,14 @@ void AppLoop() {
           fillZeros(g_alt, ALT_LEN);
           Serial.println("[WARN][APP] No hay coordenadas GPS en NVS, usando ceros");
         }
-        
+        TIMING_END(g_timing, nvsGps);
         g_state = AppState::Cycle_GetICCID;
       }
       break;
     }
 
     case AppState::Cycle_Gps: {
+      TIMING_START(g_timing, gps);
       fillZeros(g_lat, COORD_LEN);
       fillZeros(g_lng, COORD_LEN);
       fillZeros(g_alt, ALT_LEN);
@@ -707,22 +718,24 @@ void AppLoop() {
       } else {
         Serial.println("[WARN][APP] No se obtuvo fix GPS, usando ceros");
       }
-
+      TIMING_END(g_timing, gps);
       g_state = AppState::Cycle_GetICCID;
       break;
     }
     case AppState::Cycle_GetICCID: {
+      TIMING_START(g_timing, iccid);
       if (lte.powerOn()) {
         g_iccid = lte.getICCID();
         lte.powerOff();
       } else {
         g_iccid = "";
       }
-
+      TIMING_END(g_timing, iccid);
       g_state = AppState::Cycle_BuildFrame;
       break;
     }
     case AppState::Cycle_BuildFrame: {
+      TIMING_START(g_timing, buildFrame);
       g_epoch = getEpochString();
 
       formatter.reset();
@@ -752,12 +765,13 @@ void AppLoop() {
       Serial.println("[INFO][APP] === TRAMA BASE64 ===");
       Serial.println(g_frame);
       Serial.println();
-
+      TIMING_END(g_timing, buildFrame);
       g_state = AppState::Cycle_BufferWrite;
       break;
     }
 
     case AppState::Cycle_BufferWrite: {
+      TIMING_START(g_timing, bufferWrite);
       Serial.println("[INFO][APP] Guardando trama en buffer (persistente)...");
       bool saved = buffer.appendLine(String(g_frame));
       if (saved) {
@@ -766,27 +780,34 @@ void AppLoop() {
         Serial.println("[ERROR][APP] Fallo al guardar trama en buffer");
       }
       Serial.println("[DEBUG][APP] Pasando a Cycle_SendLTE");
+      TIMING_END(g_timing, bufferWrite);
       g_state = AppState::Cycle_SendLTE;
       break;
     }
 
     case AppState::Cycle_SendLTE: {
+      TIMING_START(g_timing, sendLte);
       Serial.println("[DEBUG][APP] Iniciando envio por LTE...");
       (void)sendBufferOverLTE_AndMarkProcessed();
       Serial.println("[DEBUG][APP] Envio completado, pasando a CompactBuffer");
+      TIMING_END(g_timing, sendLte);
       g_state = AppState::Cycle_CompactBuffer;
       break;
     }
 
     case AppState::Cycle_CompactBuffer: {
+      TIMING_START(g_timing, compactBuffer);
       Serial.println("[INFO][APP] Eliminando solo tramas procesadas del buffer...");
       (void)buffer.removeProcessedLines();
       Serial.println("[INFO][APP] Buffer compactado. Tramas no enviadas permanecen para próximo ciclo.");
+      TIMING_END(g_timing, compactBuffer);
       g_state = AppState::Cycle_Sleep;
       break;
     }
 
     case AppState::Cycle_Sleep: {
+      TIMING_FINALIZE(g_timing);
+      TIMING_PRINT_SUMMARY(g_timing);
       sleepModule.clearWakeupSources();
       esp_sleep_enable_timer_wakeup(g_cfg.sleep_time_us);
       sleepModule.enterDeepSleep();
