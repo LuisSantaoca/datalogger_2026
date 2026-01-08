@@ -58,11 +58,14 @@
 // ============================================================
 
 /**
- * FEAT-V2: [Reservado]
- * Sistema: [Por definir]
- * Descripción: [Por definir]
+ * FEAT-V2: Cycle Timing - Medición de tiempos de ejecución
+ * Sistema: Diagnóstico/Performance
+ * Archivo: CycleTiming.h, AppController.cpp
+ * Descripción: Mide y reporta tiempos de cada fase del ciclo FSM.
+ *              Cero overhead cuando está deshabilitado (macros vacías).
+ * Estado: Implementado
  */
-#define ENABLE_FEAT_V2_PLACEHOLDER      0
+#define ENABLE_FEAT_V2_CYCLE_TIMING     1
 
 // ============================================================
 // FUNCIÓN DE DEBUG: Imprimir flags activos
@@ -97,10 +100,10 @@ inline void printActiveFlags() {
     #endif
     
     // FEAT Flags
-    #if ENABLE_FEAT_V2_PLACEHOLDER
-    Serial.println(F("  [X] FEAT-V2: Placeholder"));
+    #if ENABLE_FEAT_V2_CYCLE_TIMING
+    Serial.println(F("  [X] FEAT-V2: Cycle Timing"));
     #else
-    Serial.println(F("  [ ] FEAT-V2: Placeholder"));
+    Serial.println(F("  [ ] FEAT-V2: Cycle Timing"));
     #endif
     
     Serial.println(F("====================="));

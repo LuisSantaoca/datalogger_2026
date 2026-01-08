@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.0.2"
+#define FW_VERSION_STRING   "v2.1.0"
 #define FW_VERSION_DATE     "2026-01-07"
-#define FW_VERSION_NAME     "pdp-fix"
+#define FW_VERSION_NAME     "cycle-timing"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,8 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.1.0  | 2026-01-07 | cycle-timing        | FEAT-V2: Sistema de timing de ciclo FSM
+//         |            |                     | Cambios: CycleTiming.h(nuevo), FeatureFlags.h(L65), AppController.cpp(L32,L166,L620-820)
 // v2.0.2  | 2026-01-07 | pdp-fix             | FIX-V1: Skip reset en configureOperator cuando hay operadora guardada
 //         |            |                     | Cambios: LTEModule.h(L84), LTEModule.cpp(L326), AppController.cpp(L378)
 // v2.0.1  | 2026-01-07 | feature-flags       | FEAT-V1: Sistema de feature flags para compilación condicional
@@ -36,7 +38,7 @@
 //         |            |                     | Cambios: version_info.h(nuevo), AppController.cpp(L30,L506)
 // --------|------------|---------------------|------------------------------------------
 // PENDIENTES:
-// v2.1.0  | PENDIENTE  | gps-retry           | Feature: Reintentar GPS si falla
+// v2.2.0  | PENDIENTE  | gps-retry           | Feature: Reintentar GPS si falla
 
 /*******************************************************************************
  * MACROS DERIVADAS (NO MODIFICAR)
