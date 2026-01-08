@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.0.0"
-#define FW_VERSION_DATE     "2025-12-18"
-#define FW_VERSION_NAME     "release-inicial"
+#define FW_VERSION_STRING   "v2.0.1"
+#define FW_VERSION_DATE     "2026-01-07"
+#define FW_VERSION_NAME     "feature-flags"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,13 +27,15 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.0.1  | 2026-01-07 | feature-flags       | FEAT-V1: Sistema de feature flags para compilación condicional
+//         |            |                     | Cambios: FeatureFlags.h(nuevo), AppController.cpp(L31,L510)
 // v2.0.0  | 2025-12-18 | release-inicial     | Versión inicial con arquitectura FSM
 //         | 2026-01-07 | +version-control    | FEAT-V0: Sistema de control de versiones centralizado
 //         |            |                     | Cambios: version_info.h(nuevo), AppController.cpp(L30,L506)
 // --------|------------|---------------------|------------------------------------------
 // PENDIENTES:
-// v2.0.1  | PENDIENTE  | pdp-fix             | FIX-V1: Reducir eventos PDP redundantes
-//         |            |                     | Ver: fixs/fix_v1_pdp_redundante/
+// v2.0.2  | PENDIENTE  | pdp-fix             | FIX-V1: Reducir eventos PDP redundantes
+//         |            |                     | Ver: fixs-feats/fixs/FIX_V1_PDP_REDUNDANTE.md
 // v2.1.0  | PENDIENTE  | gps-retry           | Feature: Reintentar GPS si falla
 
 /*******************************************************************************
@@ -50,7 +52,7 @@
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
 #define FW_VERSION_MINOR    0
-#define FW_VERSION_PATCH    0
+#define FW_VERSION_PATCH    1
 
 /*******************************************************************************
  * FUNCIÓN DE IMPRESIÓN

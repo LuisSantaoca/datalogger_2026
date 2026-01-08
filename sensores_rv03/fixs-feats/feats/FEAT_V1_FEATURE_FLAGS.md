@@ -9,10 +9,11 @@
 | **ID** | FEAT-V1 |
 | **Tipo** | Feature (Infraestructura) |
 | **Sistema** | Configuración de Compilación |
-| **Archivo Principal** | `FeatureFlags.h` |
-| **Estado** | 📋 Propuesto |
+| **Archivo Principal** | `src/FeatureFlags.h` |
+| **Estado** | ✅ Completado |
 | **Fecha Propuesta** | 2026-01-07 |
-| **Versión Target** | v2.0.1 |
+| **Fecha Implementación** | 2026-01-07 |
+| **Versión** | v2.0.1 |
 | **Depende de** | FEAT-V0 |
 
 ---

@@ -27,7 +27,8 @@
 #include <esp_sleep.h>
 #include <Preferences.h>
 #include "AppController.h"
-#include "version_info.h"  // FEAT-V0: Sistema de control de versiones centralizado
+#include "src/version_info.h"   // FEAT-V0: Sistema de control de versiones centralizado
+#include "src/FeatureFlags.h"   // FEAT-V1: Sistema de feature flags
 #include "src/DebugConfig.h"
 
 #include "src/data_buffer/BUFFERModule.h"
@@ -505,6 +506,10 @@ void AppInit(const AppConfig& cfg) {
   // ============ [FEAT-V0 START] Imprimir versión al iniciar ============
   printFirmwareVersion();
   // ============ [FEAT-V0 END] ============
+
+  // ============ [FEAT-V1 START] Imprimir feature flags activos ============
+  printActiveFlags();
+  // ============ [FEAT-V1 END] ============
 
   sleepModule.begin();
   g_wakeupCause = sleepModule.getWakeupCause();
