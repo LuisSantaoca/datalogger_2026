@@ -10,7 +10,7 @@
 | **Tipo** | Fix (Corrección de Bug) |
 | **Sistema** | LTE/Modem - Selección de Operadora |
 | **Archivo Principal** | `AppController.cpp` |
-| **Estado** | 📋 Propuesto |
+| **Estado** | ✅ Completado |
 | **Fecha Identificación** | 2026-01-13 |
 | **Versión Target** | v2.0.3 |
 | **Depende de** | FEAT-V1 (FeatureFlags.h) |
@@ -529,5 +529,5 @@ ESP.restart();
 | 2026-01-13 | Documentación creada | - |
 | 2026-01-13 | Agregadas mitigaciones de riesgo (anti-bucle, validación score) | - |
 | 2026-01-13 | Actualizado para cumplir premisas (P1, P7, P8, P9, P10) | - |
-| PENDIENTE | Implementación | v2.0.3 |
-| PENDIENTE | Verificación en campo | v2.0.3 |
+| 2026-01-13 | ✅ Implementación completada | v2.2.0 |
+| PENDIENTE | Verificación en campo | v2.2.0 |

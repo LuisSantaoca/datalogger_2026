@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.1.0"
-#define FW_VERSION_DATE     "2026-01-07"
-#define FW_VERSION_NAME     "cycle-timing"
+#define FW_VERSION_STRING   "v2.2.0"
+#define FW_VERSION_DATE     "2026-01-13"
+#define FW_VERSION_NAME     "fallback-operadora"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,8 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.2.0  | 2026-01-13 | fallback-operadora  | FIX-V2: Fallback a escaneo cuando falla operadora guardada (RF-12)
+//         |            |                     | Cambios: FeatureFlags.h(L44-58), AppController.cpp(L385-455)
 // v2.1.0  | 2026-01-07 | cycle-timing        | FEAT-V2: Sistema de timing de ciclo FSM
 //         |            |                     | Cambios: CycleTiming.h(nuevo), FeatureFlags.h(L65), AppController.cpp(L32,L166,L620-820)
 // v2.0.2  | 2026-01-07 | pdp-fix             | FIX-V1: Skip reset en configureOperator cuando hay operadora guardada
@@ -53,8 +55,8 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    0
-#define FW_VERSION_PATCH    2
+#define FW_VERSION_MINOR    2
+#define FW_VERSION_PATCH    0
 
 /*******************************************************************************
  * FUNCIÓN DE IMPRESIÓN
