@@ -40,11 +40,21 @@
 #define ENABLE_FIX_V1_SKIP_RESET_PDP    1
 
 /**
- * FIX-V2: [Reservado]
- * Sistema: [Por definir]
- * Descripción: [Por definir]
+ * FIX-V2: Fallback a escaneo cuando falla operadora guardada
+ * Sistema: LTE/Modem - Selección de Operadora
+ * Archivo: AppController.cpp
+ * Descripción: Si configureOperator() falla con operadora de NVS,
+ *              borra NVS y ejecuta escaneo completo de todas las operadoras.
+ * Mitigaciones:
+ *   - skipScanCycles: Evita bucle infinito en zonas sin cobertura
+ *   - Validación de score mínimo antes de reintentar
+ * Requisito: RF-12
+ * Estado: Implementado
  */
-#define ENABLE_FIX_V2_PLACEHOLDER       0
+#define ENABLE_FIX_V2_FALLBACK_OPERADORA  1
+
+/** @brief Ciclos a saltar tras escaneo fallido (protección anti-bucle) */
+#define FIX_V2_SKIP_CYCLES_ON_FAIL        3
 
 /**
  * FIX-V3: [Reservado]
@@ -87,10 +97,10 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V1: Skip Reset PDP"));
     #endif
     
-    #if ENABLE_FIX_V2_PLACEHOLDER
-    Serial.println(F("  [X] FIX-V2: Placeholder"));
+    #if ENABLE_FIX_V2_FALLBACK_OPERADORA
+    Serial.println(F("  [X] FIX-V2: Fallback Operadora"));
     #else
-    Serial.println(F("  [ ] FIX-V2: Placeholder"));
+    Serial.println(F("  [ ] FIX-V2: Fallback Operadora"));
     #endif
     
     #if ENABLE_FIX_V3_PLACEHOLDER

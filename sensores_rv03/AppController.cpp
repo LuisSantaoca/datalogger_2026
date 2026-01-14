@@ -383,11 +383,82 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
 
 #if ENABLE_FIX_V1_SKIP_RESET_PDP
   // ============ [FIX-V1 START] Si tiene operadora guardada, skip reset ============
-  if (!lte.configureOperator(operadoraAUsar, tieneOperadoraGuardada)) { lte.powerOff(); return false; }
+  bool configOk = lte.configureOperator(operadoraAUsar, tieneOperadoraGuardada);
   // ============ [FIX-V1 END] ============
 #else
-  if (!lte.configureOperator(operadoraAUsar))   { lte.powerOff(); return false; }
+  bool configOk = lte.configureOperator(operadoraAUsar);
 #endif
+
+#if ENABLE_FIX_V2_FALLBACK_OPERADORA
+  // ============ [FIX-V2 START] Fallback a escaneo si falla operadora guardada ============
+  // Fecha: 13 Ene 2026
+  // Autor: Luis Ocaranza
+  // Requisito: RF-12
+  // Premisas: P2 (mínimo), P3 (defaults), P4 (flag), P5 (logs), P6 (aditivo)
+  if (!configOk && tieneOperadoraGuardada) {
+    Serial.println("[WARN][APP] Operadora guardada falló. Evaluando fallback...");
+    
+    // --- PROTECCIÓN ANTI-BUCLE: Verificar si debemos saltar escaneo ---
+    preferences.begin("sensores", false);
+    uint8_t skipCycles = preferences.getUChar("skipScanCycles", 0);
+    if (skipCycles > 0) {
+      preferences.putUChar("skipScanCycles", skipCycles - 1);
+      preferences.end();
+      Serial.print("[WARN][APP] Saltando escaneo. Ciclos restantes: ");
+      Serial.println(skipCycles - 1);
+      lte.powerOff();
+      return false;
+    }
+    preferences.end();
+    // --- FIN PROTECCIÓN ANTI-BUCLE ---
+    
+    Serial.println("[INFO][APP] Iniciando escaneo de todas las operadoras...");
+    
+    // Borrar operadora de NVS inmediatamente
+    preferences.begin("sensores", false);
+    preferences.remove("lastOperator");
+    preferences.end();
+    Serial.println("[INFO][APP] Operadora eliminada de NVS");
+    
+    // Escanear todas las operadoras
+    for (uint8_t i = 0; i < NUM_OPERADORAS; i++) {
+      lte.testOperator((Operadora)i);
+    }
+    
+    // Seleccionar la mejor
+    operadoraAUsar = lte.getBestOperator();
+    int bestScore = lte.getOperatorScore(operadoraAUsar);
+    tieneOperadoraGuardada = false;  // Ya no tiene guardada
+    
+    Serial.print("[INFO][APP] Nueva operadora seleccionada: ");
+    Serial.print(OPERADORAS[operadoraAUsar].nombre);
+    Serial.print(" (Score: ");
+    Serial.print(bestScore);
+    Serial.println(")");
+    
+    // --- VALIDACIÓN DE SCORE: Verificar que hay señal válida ---
+    if (bestScore <= -999) {
+      Serial.println("[ERROR][APP] Ninguna operadora con señal válida.");
+      Serial.print("[INFO][APP] Activando protección: saltando próximos ");
+      Serial.print(FIX_V2_SKIP_CYCLES_ON_FAIL);
+      Serial.println(" ciclos de escaneo.");
+      
+      preferences.begin("sensores", false);
+      preferences.putUChar("skipScanCycles", FIX_V2_SKIP_CYCLES_ON_FAIL);
+      preferences.end();
+      
+      lte.powerOff();
+      return false;
+    }
+    // --- FIN VALIDACIÓN ---
+    
+    // Intentar configurar con la nueva operadora
+    configOk = lte.configureOperator(operadoraAUsar);
+  }
+  // ============ [FIX-V2 END] ============
+#endif
+
+  if (!configOk) { lte.powerOff(); return false; }
   if (!lte.attachNetwork())                     { lte.powerOff(); return false; }
   if (!lte.activatePDP())                       { lte.powerOff(); return false; }
   if (!lte.openTCPConnection())                 { lte.deactivatePDP(); lte.powerOff(); return false; }
