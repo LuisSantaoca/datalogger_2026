@@ -32,6 +32,12 @@
 #include "src/CycleTiming.h"    // FEAT-V2: Sistema de timing de ciclos
 #include "src/DebugConfig.h"
 
+// ============ [FEAT-V3 START] Include Crash Diagnostics ============
+#if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
+#include "src/data_diagnostics/CrashDiagnostics.h"  // FEAT-V3
+#endif
+// ============ [FEAT-V3 END] ============
+
 #include "src/data_buffer/BUFFERModule.h"
 #include "src/data_buffer/BLEModule.h"
 #include "src/data_buffer/config_data_buffer.h"
@@ -525,6 +531,7 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
     preferences.putUChar("lastOperator", (uint8_t)operadoraAUsar);
     Serial.print("[INFO][APP] Operadora guardada para futuros envios: ");
     Serial.println(OPERADORAS[operadoraAUsar].nombre);
+    CRASH_MARK_SUCCESS();  // FEAT-V3: Marcar ciclo exitoso
   } else {
     if (tieneOperadoraGuardada) {
       preferences.remove("lastOperator");
@@ -586,6 +593,20 @@ void AppInit(const AppConfig& cfg) {
   Serial.begin(115200);
   delay(200);
 
+  // ============ [FEAT-V3 START] Crash Diagnostics Init ============
+  #if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
+  CRASH_CHECKPOINT(CP_BOOT_START);
+  CrashDiag::init();
+  
+  // Imprimir reporte si hubo crash
+  if (CrashDiag::hadCrash()) {
+    Serial.println(F("\n⚠️ CRASH DETECTADO EN CICLO ANTERIOR"));
+    CrashDiag::printReport();
+    Serial.println(F("Escribe 'HISTORY' para ver historial completo\n"));
+  }
+  #endif
+  // ============ [FEAT-V3 END] ============
+
   // ============ [FEAT-V0 START] Imprimir versión al iniciar ============
   printFirmwareVersion();
   // ============ [FEAT-V0 END] ============
@@ -604,6 +625,7 @@ void AppInit(const AppConfig& cfg) {
     g_initialized = true;
     return;
   }
+  CRASH_CHECKPOINT(CP_BOOT_LITTLEFS_OK);  // FEAT-V3
 
   (void)adcSensor.begin();
   (void)i2cSensor.begin();
@@ -684,6 +706,24 @@ void AppInit(const AppConfig& cfg) {
  */
 void AppLoop() {
   if (!g_initialized) return;
+
+  // ============ [FEAT-V3 START] Comandos de diagnóstico Serial ============
+  #if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    cmd.toUpperCase();
+    
+    if (cmd == "DIAG") {
+      CrashDiag::printReport();
+    } else if (cmd == "HISTORY") {
+      CrashDiag::printHistory();
+    } else if (cmd == "CLEAR") {
+      CrashDiag::clearHistory();
+    }
+  }
+  #endif
+  // ============ [FEAT-V3 END] ============
 
   ble.update();
 
@@ -879,6 +919,8 @@ void AppLoop() {
     case AppState::Cycle_Sleep: {
       TIMING_FINALIZE(g_timing);
       TIMING_PRINT_SUMMARY(g_timing);
+      CRASH_CHECKPOINT(CP_SLEEP_ENTER);  // FEAT-V3
+      CRASH_SYNC_NVS();  // FEAT-V3: Guardar estado antes de sleep
       sleepModule.clearWakeupSources();
       esp_sleep_enable_timer_wakeup(g_cfg.sleep_time_us);
       sleepModule.enterDeepSleep();

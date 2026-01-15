@@ -77,6 +77,17 @@
  */
 #define ENABLE_FEAT_V2_CYCLE_TIMING     1
 
+/**
+ * FEAT-V3: Crash Diagnostics - Sistema de diagnóstico post-mortem
+ * Sistema: Diagnóstico/Estabilidad
+ * Archivo: src/data_diagnostics/CrashDiagnostics.h, .cpp
+ * Descripción: Captura contexto de crashes para análisis post-mortem.
+ *              Usa RTC memory + NVS + LittleFS para persistencia.
+ *              Reporte vía Serial cuando se conecta dispositivo.
+ * Estado: Implementado
+ */
+#define ENABLE_FEAT_V3_CRASH_DIAGNOSTICS  1
+
 // ============================================================
 // FUNCIÓN DE DEBUG: Imprimir flags activos
 // ============================================================
@@ -114,6 +125,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FEAT-V2: Cycle Timing"));
     #else
     Serial.println(F("  [ ] FEAT-V2: Cycle Timing"));
+    #endif
+    
+    #if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
+    Serial.println(F("  [X] FEAT-V3: Crash Diagnostics"));
+    #else
+    Serial.println(F("  [ ] FEAT-V3: Crash Diagnostics"));
     #endif
     
     Serial.println(F("====================="));

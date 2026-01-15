@@ -3,6 +3,12 @@
 #include <string.h>
 #include <stdlib.h>
 
+// ============ [FEAT-V3 START] Include Crash Diagnostics ============
+#if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
+#include "../data_diagnostics/CrashDiagnostics.h"  // FEAT-V3
+#endif
+// ============ [FEAT-V3 END] ============
+
 LTEModule::LTEModule(HardwareSerial& serial) : _serial(serial), _debugEnabled(false), _debugSerial(nullptr) {
 }
 
@@ -33,11 +39,12 @@ void LTEModule::begin() {
 }
 
 bool LTEModule::powerOn() {
+    CRASH_CHECKPOINT(CP_MODEM_POWER_ON_START);  // FEAT-V3
     debugPrint("Encendiendo SIM7080G...");
     
     if (isAlive()) {
         debugPrint("Modulo ya esta encendido");
- 
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);  // FEAT-V3
         delay(2000);
         return true;
     }
@@ -50,13 +57,16 @@ bool LTEModule::powerOn() {
             _debugSerial->println(LTE_POWER_ON_ATTEMPTS);
         }
         
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_PWRKEY);  // FEAT-V3
         togglePWRKEY();
         delay(LTE_PWRKEY_POST_DELAY_MS);
         
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_WAIT);  // FEAT-V3
         uint32_t startTime = millis();
         while (millis() - startTime < LTE_AT_READY_TIMEOUT_MS) {
             if (isAlive()) {
                 debugPrint("SIM7080G encendido correctamente!");
+                CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);  // FEAT-V3
                 delay(1000);
                 return true;
             }
@@ -936,6 +946,7 @@ int LTEModule::getOperatorScore(Operadora operadora) {
 }
 
 bool LTEModule::openTCPConnection() {
+    CRASH_CHECKPOINT(CP_MODEM_TCP_CONNECT_START);  // FEAT-V3
     debugPrint("Abriendo conexion TCP...");
     
     debugPrint("Cerrando conexion previa si existe...");
@@ -943,6 +954,8 @@ bool LTEModule::openTCPConnection() {
     delay(1000);
     
     String caOpenCmd = "AT+CAOPEN=0,0,\"TCP\",\"" + String(DB_SERVER_IP) + "\"," + String(TCP_PORT);
+    CRASH_LOG_AT(caOpenCmd.c_str());  // FEAT-V3
+    CRASH_SYNC_NVS();  // FEAT-V3: Guardar antes de operación crítica
     
     bool caSuccess = false;
     for (int attempt = 0; attempt < 3; attempt++) {
@@ -964,6 +977,7 @@ bool LTEModule::openTCPConnection() {
         clearBuffer();
         _serial.println(caOpenCmd);
         
+        CRASH_CHECKPOINT(CP_MODEM_TCP_CONNECT_WAIT);  // FEAT-V3
         String response = "";
         uint32_t startTime = millis();
         
@@ -998,9 +1012,11 @@ bool LTEModule::openTCPConnection() {
     }
     
     if (caSuccess) {
+        CRASH_CHECKPOINT(CP_MODEM_TCP_CONNECT_OK);  // FEAT-V3
         debugPrint("Conexion TCP abierta exitosamente");
         return true;
     } else {
+        CRASH_CHECKPOINT(CP_MODEM_TCP_CONNECT_FAIL);  // FEAT-V3
         debugPrint("Error: Fallo al abrir conexion TCP tras 3 intentos");
         return false;
     }
@@ -1039,6 +1055,7 @@ bool LTEModule::sendTCPData(String data) {
 }
 
 bool LTEModule::sendTCPData(const uint8_t* data, size_t length) {
+    CRASH_CHECKPOINT(CP_MODEM_TCP_SEND_START);  // FEAT-V3
     debugPrint("Enviando datos por TCP...");
     
     if (length == 0) {
@@ -1052,6 +1069,8 @@ bool LTEModule::sendTCPData(const uint8_t* data, size_t length) {
     }
     
     String casendCmd = "AT+CASEND=0," + String(length);
+    CRASH_LOG_AT(casendCmd.c_str());  // FEAT-V3
+    CRASH_SYNC_NVS();  // FEAT-V3: Guardar antes de operación crítica
     
     if (_debugEnabled && _debugSerial) {
         _debugSerial->print("Enviando: ");
@@ -1070,6 +1089,7 @@ bool LTEModule::sendTCPData(const uint8_t* data, size_t length) {
     _serial.println(casendCmd);
     delay(500);
     
+    CRASH_CHECKPOINT(CP_MODEM_TCP_SEND_WAIT);  // FEAT-V3
     String response = "";
     uint32_t startTime = millis();
     bool promptReceived = false;
@@ -1128,6 +1148,7 @@ bool LTEModule::sendTCPData(const uint8_t* data, size_t length) {
     }
     
     if (success) {
+        CRASH_CHECKPOINT(CP_MODEM_TCP_SEND_OK);  // FEAT-V3
         debugPrint("Datos enviados exitosamente por TCP");
         return true;
     } else {
