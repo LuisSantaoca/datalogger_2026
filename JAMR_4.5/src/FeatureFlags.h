@@ -57,11 +57,45 @@
 #define FIX_V2_SKIP_CYCLES_ON_FAIL        3
 
 /**
- * FIX-V3: [Reservado]
- * Sistema: [Por definir]
- * Descripción: [Por definir]
+ * FIX-V3: Modo reposo por baja batería
+ * Sistema: Energía / LTE
+ * Archivo: AppController.cpp
+ * Descripción: Si batería <= UTS_LOW_ENTER (3.20V), entra a modo reposo.
+ *              Solo sale cuando batería >= UTS_LOW_EXIT (3.80V) de forma estable.
+ *              Bloquea transmisión LTE para evitar pico de 2A que causa brownout.
+ * Requisitos: RF-06, RF-09
+ * Estado: Implementado
  */
-#define ENABLE_FIX_V3_PLACEHOLDER       0
+#define ENABLE_FIX_V3_LOW_BATTERY_MODE    1
+
+// ============================================================
+// FIX-V3: UMBRALES DE BATERÍA (CONTRATO v1.0)
+// ============================================================
+// NOTA: Valores configurables por revisión de hardware.
+//       El comportamiento (histéresis + estabilidad) es OBLIGATORIO.
+
+/** @brief Umbral de entrada a modo reposo (voltios) */
+#define FIX_V3_UTS_LOW_ENTER              3.20f
+
+/** @brief Umbral de salida de modo reposo (voltios) */
+#define FIX_V3_UTS_LOW_EXIT               3.80f
+
+// ============================================================
+// FIX-V3: PARÁMETROS DE FILTRADO
+// ============================================================
+
+/** @brief Número de muestras para promediar vBat */
+#define FIX_V3_VBAT_FILTER_SAMPLES        10
+
+/** @brief Delay entre muestras ADC (ms) */
+#define FIX_V3_VBAT_FILTER_DELAY_MS       50
+
+// ============================================================
+// FIX-V3: PARÁMETROS DE ESTABILIDAD
+// ============================================================
+
+/** @brief Ciclos consecutivos requeridos para considerar "estable" */
+#define FIX_V3_STABLE_CYCLES_REQUIRED     3
 
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
@@ -114,10 +148,14 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V2: Fallback Operadora"));
     #endif
     
-    #if ENABLE_FIX_V3_PLACEHOLDER
-    Serial.println(F("  [X] FIX-V3: Placeholder"));
+    #if ENABLE_FIX_V3_LOW_BATTERY_MODE
+    Serial.print(F("  [X] FIX-V3: Low Battery Mode ("));
+    Serial.print(FIX_V3_UTS_LOW_ENTER, 2);
+    Serial.print(F("V/"));
+    Serial.print(FIX_V3_UTS_LOW_EXIT, 2);
+    Serial.println(F("V)"));
     #else
-    Serial.println(F("  [ ] FIX-V3: Placeholder"));
+    Serial.println(F("  [ ] FIX-V3: Low Battery Mode"));
     #endif
     
     // FEAT Flags

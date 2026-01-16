@@ -1,3 +1,20 @@
+/**
+ * @file LTEModule.h
+ * @brief Módulo de comunicación LTE/GSM con SIM7080G
+ * @version 2.0.3
+ * @date 2026-01-15
+ * 
+ * Proporciona interfaz para:
+ * - Control de energía del módem (power on/off)
+ * - Comandos AT y comunicación serial
+ * - Conexión de red y selección de operadora
+ * - Conexiones TCP para transmisión de datos
+ * - Medición de calidad de señal (RSSI/RSRP/RSRQ)
+ * 
+ * @see config_data_lte.h para configuración
+ * @see config_operadoras.h para lista de operadoras
+ */
+
 #ifndef LTE_MODULE_H
 #define LTE_MODULE_H
 
@@ -126,6 +143,12 @@ public:
      * @return Operator info string
      */
     String getCurrentOperator();
+
+    /**
+     * @brief Get signal quality (CSQ)
+     * @return CSQ value (0-31), 99 if unknown/error
+     */
+    int getCSQ();
 
     /**
      * @brief Get current band configuration (CBANDCFG)

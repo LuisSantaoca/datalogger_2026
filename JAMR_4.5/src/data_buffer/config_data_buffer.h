@@ -1,6 +1,10 @@
 /**
  * @file config_data_buffer.h
- * @brief Configuración global del proyecto
+ * @brief Configuración del módulo de buffer de datos
+ * @version 1.0.0
+ * @date 2026-01-15
+ * 
+ * Parámetros de rutas de archivos y marcadores de procesamiento.
  */
 
 #ifndef CONFIG_DATA_BUFFER_H

@@ -1,3 +1,12 @@
+/**
+ * @file LTEModule.cpp
+ * @brief Implementación del módulo de comunicación LTE/GSM
+ * @version 2.0.3
+ * @date 2026-01-15
+ * 
+ * @see LTEModule.h para documentación de API
+ */
+
 #include "LTEModule.h"
 #include "../FeatureFlags.h"  // FEAT-V1: Feature flags
 #include <string.h>
@@ -688,6 +697,27 @@ String LTEModule::getCurrentOperator() {
     }
     
     return response;
+}
+
+int LTEModule::getCSQ() {
+    String response = sendATCommandWithResponse("AT+CSQ", 3000);
+    
+    // Respuesta esperada: +CSQ: XX,YY donde XX es la calidad (0-31, 99=desconocido)
+    int csqIndex = response.indexOf("+CSQ:");
+    if (csqIndex == -1) {
+        return 99;  // Error
+    }
+    
+    int commaIndex = response.indexOf(',', csqIndex);
+    if (commaIndex == -1) {
+        return 99;
+    }
+    
+    String csqStr = response.substring(csqIndex + 6, commaIndex);
+    csqStr.trim();
+    int csq = csqStr.toInt();
+    
+    return csq;
 }
 
 String LTEModule::getCurrentBands() {

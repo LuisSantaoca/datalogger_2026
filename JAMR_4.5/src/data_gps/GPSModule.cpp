@@ -1,3 +1,12 @@
+/**
+ * @file GPSModule.cpp
+ * @brief Implementación del módulo GPS/GNSS
+ * @version 1.0.0
+ * @date 2026-01-15
+ * 
+ * @see GPSModule.h para documentación de API
+ */
+
 #include "GPSModule.h"
 #include <string.h>
 #include <stdlib.h>

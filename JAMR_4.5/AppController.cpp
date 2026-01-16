@@ -19,8 +19,8 @@
  * - Almacenamiento persistente (NVS) de configuraciones críticas
  * 
  * @author Sistema Sensores RV03
- * @date 2025-12-18
- * @version 2.0
+ * @date 2026-01-15
+ * @version 2.1.0
  */
 
 #include <Arduino.h>
@@ -62,6 +62,19 @@
 
 #include "src/data_time/RTCModule.h"
 #include "src/data_time/config_data_time.h"
+
+// ============ [FIX-V3 START] Variables persistentes en RTC ============
+#if ENABLE_FIX_V3_LOW_BATTERY_MODE
+/** @brief Flag que indica si estamos en modo reposo por batería baja */
+RTC_DATA_ATTR static bool g_restMode = false;
+
+/** @brief Contador de ciclos estables para salida de reposo */
+RTC_DATA_ATTR static uint8_t g_stableCycleCounter = 0;
+
+/** @brief Última lectura de vBat filtrada (para debug) */
+RTC_DATA_ATTR static float g_lastVBatFiltered = 0.0f;
+#endif
+// ============ [FIX-V3 END] ============
 
 /** @brief Número de muestras a descartar al inicio de cada lectura de sensor */
 static const uint8_t DISCARD_SAMPLES = 5;
@@ -170,10 +183,151 @@ static String g_varStr[VAR_COUNT];
 /** @brief Buffer para trama completa codificada en Base64 */
 static char g_frame[FRAME_BASE64_MAX_LEN];
 
+// ============ Variables para CYCLE SUMMARY ============
+/** @brief Operadora usada en último ciclo LTE */
+static Operadora g_lastOperadoraUsed = Operadora::MOVISTAR;
+
+/** @brief Score de señal de la operadora usada */
+static int g_lastOperatorScore = -999;
+
+/** @brief Valor CSQ de señal (0-31, 99=desconocido) */
+static int g_lastCSQ = 99;
+
+/** @brief Flag indicando si el ciclo LTE fue exitoso */
+static bool g_lteCycleSuccess = false;
+
 #if ENABLE_FEAT_V2_CYCLE_TIMING
 /** @brief Estructura global para timing de ciclo (FEAT-V2) */
 static CycleTiming g_timing;
 #endif
+
+// ============ CYCLE SUMMARY: Resumen de datos del ciclo ============
+/**
+ * @brief Imprime resumen de datos adquiridos en el ciclo
+ * 
+ * Muestra valores de sensores, batería, GPS, operadora y señal
+ * para diagnóstico rápido en campo.
+ */
+static void printCycleSummary() {
+    Serial.println(F(""));
+    Serial.println(F("\xE2\x95\x94\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x97"));  // ╔══════════════════════════════════════╗
+    Serial.println(F("\xE2\x95\x91         CYCLE DATA SUMMARY            \xE2\x95\x91"));  // ║         CYCLE DATA SUMMARY            ║
+    Serial.println(F("\xE2\x95\xA0\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\xA3"));  // ╠══════════════════════════════════════╣
+    
+    // Sensores RS485 (Modbus)
+    Serial.print(F("\xE2\x95\x91  RS485[0]:       "));  // ║  RS485[0]:       
+    Serial.print(g_varStr[0]);
+    for (int i = g_varStr[0].length(); i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));  // ║
+    
+    Serial.print(F("\xE2\x95\x91  RS485[1]:       "));
+    Serial.print(g_varStr[1]);
+    for (int i = g_varStr[1].length(); i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.print(F("\xE2\x95\x91  RS485[2]:       "));
+    Serial.print(g_varStr[2]);
+    for (int i = g_varStr[2].length(); i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.print(F("\xE2\x95\x91  RS485[3]:       "));
+    Serial.print(g_varStr[3]);
+    for (int i = g_varStr[3].length(); i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    // Sensores I2C (Temp/Hum) - Valores almacenados como x100
+    float tempVal = g_varStr[4].toFloat() / 100.0f;
+    Serial.print(F("\xE2\x95\x91  Temp (I2C):     "));
+    Serial.print(tempVal, 2);
+    Serial.print(F(" C"));
+    int tempLen = String(tempVal, 2).length() + 2;
+    for (int i = tempLen; i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    float humVal = g_varStr[5].toFloat() / 100.0f;
+    Serial.print(F("\xE2\x95\x91  Hum (I2C):      "));
+    Serial.print(humVal, 2);
+    Serial.print(F(" %"));
+    int humLen = String(humVal, 2).length() + 2;
+    for (int i = humLen; i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    // Batería - Valor almacenado como x100
+    float batVal = g_varStr[6].toFloat() / 100.0f;
+    Serial.print(F("\xE2\x95\x91  Battery (ADC):  "));
+    Serial.print(batVal, 2);
+    Serial.print(F(" V"));
+    int batLen = String(batVal, 2).length() + 2;
+    for (int i = batLen; i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.println(F("\xE2\x95\xA0\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\xA3"));  // ╠══════════════════════════════════════╣
+    
+    // GPS
+    Serial.print(F("\xE2\x95\x91  GPS Lat:        "));
+    Serial.print(g_lat);
+    for (int i = strlen(g_lat); i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.print(F("\xE2\x95\x91  GPS Lng:        "));
+    Serial.print(g_lng);
+    for (int i = strlen(g_lng); i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.print(F("\xE2\x95\x91  GPS Alt:        "));
+    Serial.print(g_alt);
+    Serial.print(F(" m"));
+    for (int i = strlen(g_alt) + 2; i < 15; i++) Serial.print(' ');
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.println(F("\xE2\x95\xA0\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\xA3"));  // ╠══════════════════════════════════════╣
+    
+    // LTE Info
+    Serial.print(F("\xE2\x95\x91  ICCID:          "));
+    if (g_iccid.length() > 0) {
+        Serial.print(g_iccid);
+        for (int i = g_iccid.length(); i < 20; i++) Serial.print(' ');
+    } else {
+        Serial.print(F("(not read)          "));
+    }
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.print(F("\xE2\x95\x91  Operator:       "));
+    if (g_lteCycleSuccess) {
+        Serial.print(OPERADORAS[g_lastOperadoraUsed].nombre);
+        for (int i = strlen(OPERADORAS[g_lastOperadoraUsed].nombre); i < 15; i++) Serial.print(' ');
+    } else {
+        Serial.print(F("(no TX)        "));
+    }
+    Serial.println(F("\xE2\x95\x91"));
+    
+    Serial.print(F("\xE2\x95\x91  Signal (CSQ):   "));
+    if (g_lteCycleSuccess && g_lastCSQ != 99 && g_lastCSQ != 0) {
+        // CSQ a dBm: dBm = -113 + (CSQ * 2)
+        int dbm = -113 + (g_lastCSQ * 2);
+        Serial.print(g_lastCSQ);
+        Serial.print(F(" ("));
+        Serial.print(dbm);
+        Serial.print(F(" dBm)"));
+        for (int i = 0; i < 3; i++) Serial.print(' ');
+    } else {
+        Serial.print(F("N/A            "));
+    }
+    Serial.println(F("\xE2\x95\x91"));
+    
+#if ENABLE_FIX_V3_LOW_BATTERY_MODE
+    Serial.print(F("\xE2\x95\x91  Rest Mode:      "));
+    if (g_restMode) {
+        Serial.print(F("ACTIVE (LTE blocked)"));
+    } else {
+        Serial.print(F("OFF            "));
+    }
+    Serial.println(F("\xE2\x95\x91"));
+#endif
+    
+    Serial.println(F("\xE2\x95\x9A\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x90\xE2\x95\x9D"));  // ╚══════════════════════════════════════╝
+    Serial.println(F(""));
+}
 
 /**
  * @brief Rellena un buffer con caracteres '0' y agrega terminador nulo
@@ -189,6 +343,111 @@ static void fillZeros(char* dst, size_t width) {
   for (size_t i = 0; i < width; i++) dst[i] = '0';
   dst[width] = '\0';
 }
+
+// ============ [FIX-V3 START] Funciones de control de batería ============
+#if ENABLE_FIX_V3_LOW_BATTERY_MODE
+/**
+ * @brief Lee voltaje de batería con filtrado (promedio de N muestras)
+ * 
+ * Descarta primera lectura para eliminar ruido del multiplexor ADC.
+ * Promedia N lecturas separadas por delay configurable.
+ * Usa ADCSensorModule para obtener voltaje calibrado real.
+ * 
+ * @return Voltaje filtrado en voltios
+ */
+static float readVBatFiltered() {
+    float sum = 0.0f;
+    
+    // Descartar primera lectura (ruido de multiplexor)
+    adcSensor.readSensor();
+    delay(FIX_V3_VBAT_FILTER_DELAY_MS);
+    
+    // Tomar N muestras y promediar
+    for (int i = 0; i < FIX_V3_VBAT_FILTER_SAMPLES; i++) {
+        adcSensor.readSensor();
+        sum += adcSensor.getValue();  // Ya calibrado en voltios reales
+        delay(FIX_V3_VBAT_FILTER_DELAY_MS);
+    }
+    
+    return sum / FIX_V3_VBAT_FILTER_SAMPLES;
+}
+
+/**
+ * @brief Evalúa si debe entrar/salir de modo reposo
+ * 
+ * Implementa histéresis con umbrales:
+ * - Entrada: vBat <= 3.20V (inmediato)
+ * - Salida: vBat >= 3.80V Y estable (3 ciclos consecutivos)
+ * 
+ * @param vBatFiltered Voltaje filtrado actual
+ * @return true si puede operar normalmente (enviar LTE), false si debe estar en reposo
+ */
+static bool evaluateBatteryState(float vBatFiltered) {
+    g_lastVBatFiltered = vBatFiltered;
+    
+    if (!g_restMode) {
+        // === MODO NORMAL: Evaluar entrada a reposo ===
+        if (vBatFiltered <= FIX_V3_UTS_LOW_ENTER) {
+            g_restMode = true;
+            g_stableCycleCounter = 0;
+            Serial.println(F(""));
+            Serial.println(F("╔════════════════════════════════════════════════════╗"));
+            Serial.println(F("║  [FIX-V3] BATERIA BAJA - ENTRANDO A MODO REPOSO    ║"));
+            Serial.print(F("║  vBat_filtrada: "));
+            Serial.print(vBatFiltered, 2);
+            Serial.print(F("V <= "));
+            Serial.print(FIX_V3_UTS_LOW_ENTER, 2);
+            Serial.println(F("V                  ║"));
+            Serial.println(F("║  Radio/LTE BLOQUEADO hasta recuperacion            ║"));
+            Serial.println(F("╚════════════════════════════════════════════════════╝"));
+            return false;
+        }
+        return true;  // Operar normalmente
+        
+    } else {
+        // === MODO REPOSO: Evaluar salida ===
+        if (vBatFiltered >= FIX_V3_UTS_LOW_EXIT) {
+            g_stableCycleCounter++;
+            Serial.print(F("[FIX-V3] vBat: "));
+            Serial.print(vBatFiltered, 2);
+            Serial.print(F("V >= "));
+            Serial.print(FIX_V3_UTS_LOW_EXIT, 2);
+            Serial.print(F("V | Estabilidad: "));
+            Serial.print(g_stableCycleCounter);
+            Serial.print(F("/"));
+            Serial.println(FIX_V3_STABLE_CYCLES_REQUIRED);
+            
+            if (g_stableCycleCounter >= FIX_V3_STABLE_CYCLES_REQUIRED) {
+                g_restMode = false;
+                g_stableCycleCounter = 0;
+                Serial.println(F(""));
+                Serial.println(F("╔════════════════════════════════════════════════════╗"));
+                Serial.println(F("║  [FIX-V3] BATERIA RECUPERADA - SALIENDO DE REPOSO ║"));
+                Serial.println(F("║  Condicion de estabilidad cumplida                ║"));
+                Serial.println(F("║  Reanudando operacion normal                       ║"));
+                Serial.println(F("╚════════════════════════════════════════════════════╝"));
+                return true;
+            }
+        } else {
+            // Voltaje cayó: reiniciar contador de estabilidad
+            if (g_stableCycleCounter > 0) {
+                Serial.print(F("[FIX-V3] vBat: "));
+                Serial.print(vBatFiltered, 2);
+                Serial.print(F("V < "));
+                Serial.print(FIX_V3_UTS_LOW_EXIT, 2);
+                Serial.println(F("V | Estabilidad REINICIADA"));
+            }
+            g_stableCycleCounter = 0;
+        }
+        
+        Serial.print(F("[FIX-V3] Modo REPOSO activo. vBat: "));
+        Serial.print(vBatFiltered, 2);
+        Serial.println(F("V. Esperando recuperacion..."));
+        return false;
+    }
+}
+#endif
+// ============ [FIX-V3 END] ============
 
 /**
  * @brief Formatea una coordenada GPS (latitud o longitud) con 6 decimales
@@ -465,8 +724,17 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
 #endif
 
   if (!configOk) { lte.powerOff(); return false; }
+  
+  // Guardar info para CYCLE SUMMARY
+  g_lastOperadoraUsed = operadoraAUsar;
+  g_lastOperatorScore = lte.getOperatorScore(operadoraAUsar);
+  
   if (!lte.attachNetwork())                     { lte.powerOff(); return false; }
   if (!lte.activatePDP())                       { lte.powerOff(); return false; }
+  
+  // Obtener CSQ para CYCLE SUMMARY
+  g_lastCSQ = lte.getCSQ();
+  
   if (!lte.openTCPConnection())                 { lte.deactivatePDP(); lte.powerOff(); return false; }
 
   String allLines[MAX_LINES_TO_READ];
@@ -532,6 +800,7 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
     Serial.print("[INFO][APP] Operadora guardada para futuros envios: ");
     Serial.println(OPERADORAS[operadoraAUsar].nombre);
     CRASH_MARK_SUCCESS();  // FEAT-V3: Marcar ciclo exitoso
+    g_lteCycleSuccess = true;  // Marcar ciclo LTE exitoso para CYCLE SUMMARY
   } else {
     if (tieneOperadoraGuardada) {
       preferences.remove("lastOperator");
@@ -731,6 +1000,8 @@ void AppLoop() {
     case AppState::BleOnly: {
       if (!ble.isActive()) {
         TIMING_RESET(g_timing);  // Inicia timing del ciclo cuando termina BLE
+        g_lteCycleSuccess = false;  // Reset para CYCLE SUMMARY
+        g_lastCSQ = 99;  // Reset CSQ
         g_state = AppState::Cycle_ReadSensors;
       }
       break;
@@ -890,8 +1161,25 @@ void AppLoop() {
       } else {
         Serial.println("[ERROR][APP] Fallo al guardar trama en buffer");
       }
-      Serial.println("[DEBUG][APP] Pasando a Cycle_SendLTE");
       TIMING_END(g_timing, bufferWrite);
+      
+#if ENABLE_FIX_V3_LOW_BATTERY_MODE
+      // ============ [FIX-V3 START] Verificar batería antes de LTE ============
+      float vBatFiltered = readVBatFiltered();
+      
+      if (!evaluateBatteryState(vBatFiltered)) {
+        // Estamos en reposo - SALTAR LTE, ir directo a sleep
+        Serial.println(F("[FIX-V3] Datos guardados. LTE bloqueado por bateria baja."));
+        Serial.print(F("[FIX-V3] Buffer tiene tramas pendientes. TX cuando vBat >= "));
+        Serial.print(FIX_V3_UTS_LOW_EXIT, 2);
+        Serial.println(F("V estable."));
+        g_state = AppState::Cycle_Sleep;  // Saltar LTE
+        break;
+      }
+      // ============ [FIX-V3 END] ============
+#endif
+      
+      Serial.println("[DEBUG][APP] Pasando a Cycle_SendLTE");
       g_state = AppState::Cycle_SendLTE;
       break;
     }
@@ -919,6 +1207,7 @@ void AppLoop() {
     case AppState::Cycle_Sleep: {
       TIMING_FINALIZE(g_timing);
       TIMING_PRINT_SUMMARY(g_timing);
+      printCycleSummary();  // Resumen de datos del ciclo
       CRASH_CHECKPOINT(CP_SLEEP_ENTER);  // FEAT-V3
       CRASH_SYNC_NVS();  // FEAT-V3: Guardar estado antes de sleep
       sleepModule.clearWakeupSources();

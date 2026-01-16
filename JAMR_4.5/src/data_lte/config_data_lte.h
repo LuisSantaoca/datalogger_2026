@@ -1,3 +1,12 @@
+/**
+ * @file config_data_lte.h
+ * @brief Configuración del módulo LTE/GSM
+ * @version 2.0.3
+ * @date 2026-01-15
+ * 
+ * Parámetros de hardware y timeouts para comunicación con SIM7080G.
+ */
+
 #ifndef CONFIG_DATA_LTE_H
 #define CONFIG_DATA_LTE_H
 

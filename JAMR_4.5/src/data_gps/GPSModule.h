@@ -1,31 +1,26 @@
+/**
+ * @file GPSModule.h
+ * @brief Módulo GPS/GNSS integrado en SIM7080G
+ * @version 1.0.0
+ * @date 2026-01-15
+ * 
+ * Control del subsistema GNSS del SIM7080G mediante comandos AT.
+ * Incluye encendido por PWRKEY, lectura de coordenadas y apagado.
+ * 
+ * Funcionalidades:
+ * - Control de energía del módulo vía PWRKEY
+ * - Lectura de coordenadas (lat/lon/alt)
+ * - Parseo de respuestas CGNSINF
+ * 
+ * @see config_data_gps.h para configuración de timeouts y reintentos
+ */
+
 #ifndef GPS_MODULE_H
 #define GPS_MODULE_H
 
 #include <Arduino.h>
 #include "config_data_gps.h"
 #include "../DebugConfig.h"
-
-// Macros de Debug antiguas - COMENTADAS (ahora usa DebugConfig.h)
-/*
-#if DEBUG_ENABLED
-  #define DEBUG_ERROR(...)   if(DEBUG_LEVEL >= DEBUG_LEVEL_ERROR)   { Serial.print("[ERROR] ");   Serial.println(__VA_ARGS__); }
-  #define DEBUG_WARN(...)    if(DEBUG_LEVEL >= DEBUG_LEVEL_WARNING) { Serial.print("[WARN]  ");   Serial.println(__VA_ARGS__); }
-  #define DEBUG_INFO(...)    if(DEBUG_LEVEL >= DEBUG_LEVEL_INFO)    { Serial.print("[INFO]  ");   Serial.println(__VA_ARGS__); }
-  #define DEBUG_DEBUG(...)   if(DEBUG_LEVEL >= DEBUG_LEVEL_DEBUG)   { Serial.print("[DEBUG] ");   Serial.println(__VA_ARGS__); }
-  #define DEBUG_VERBOSE(...) if(DEBUG_LEVEL >= DEBUG_LEVEL_VERBOSE) { Serial.print("[VERBOSE] "); Serial.println(__VA_ARGS__); }
-#else
-  #define DEBUG_ERROR(...)
-  #define DEBUG_WARN(...)
-  #define DEBUG_INFO(...)
-  #define DEBUG_DEBUG(...)
-  #define DEBUG_VERBOSE(...)
-#endif
-*/
-
-/**
- * @file GPSModule.h
- * @brief Encendido por PWRKEY, control AT y lectura GNSS en SIM7080G.
- */
 
 struct GpsFix {
   bool hasFix;

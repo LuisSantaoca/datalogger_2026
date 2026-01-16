@@ -1,13 +1,13 @@
 /**
  * @file AppController.h
  * @brief Interfaz pública del controlador principal de la aplicación
+ * @version 2.1.0
+ * @date 2026-01-15
  * 
  * Define la estructura de configuración y las funciones públicas para
  * inicializar y ejecutar el sistema de adquisición de datos.
  * 
- * @author Sistema Sensores RV03
- * @date 2025-12-18
- * @version 2.0
+ * @see AppController.cpp para implementación de FSM
  */
 
 #pragma once

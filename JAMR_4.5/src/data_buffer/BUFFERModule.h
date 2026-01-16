@@ -1,6 +1,15 @@
 /**
  * @file BUFFERModule.h
- * @brief Gestor de archivos usando LittleFS para almacenar líneas de texto
+ * @brief Gestor de buffer de datos con persistencia en LittleFS
+ * @version 1.0.0
+ * @date 2026-01-15
+ * 
+ * Proporciona almacenamiento persistente de líneas de texto para:
+ * - Buffering de tramas cuando no hay conectividad
+ * - Marcado de líneas procesadas/pendientes
+ * - Limpieza automática de datos enviados
+ * 
+ * @see config_data_buffer.h para configuración de rutas
  */
 
 #ifndef BUFFERMODULE_H
@@ -8,10 +17,15 @@
 
 #include <LittleFS.h>
 
+/**
+ * @class BUFFERModule
+ * @brief Gestor de archivos para almacenamiento persistente de datos
+ */
 class BUFFERModule {
   public:
     /**
-     * Constructor de la clase BUFFERModule.
+     * @brief Constructor de la clase BUFFERModule
+     * 
      * Inicializa las variables internas del gestor de archivos.
      */
     BUFFERModule();

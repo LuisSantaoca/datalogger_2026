@@ -1,6 +1,10 @@
 /**
  * @file BUFFERModule.cpp
- * @brief Implementación del gestor de archivos LittleFS
+ * @brief Implementación del gestor de buffer con LittleFS
+ * @version 1.0.0
+ * @date 2026-01-15
+ * 
+ * @see BUFFERModule.h para documentación de API
  */
 
 #include "BUFFERModule.h"

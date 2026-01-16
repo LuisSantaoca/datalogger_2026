@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.2.0"
-#define FW_VERSION_DATE     "2026-01-13"
-#define FW_VERSION_NAME     "fallback-operadora"
+#define FW_VERSION_STRING   "v2.3.0"
+#define FW_VERSION_DATE     "2026-01-15"
+#define FW_VERSION_NAME     "low-battery-mode"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,8 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.3.0  | 2026-01-15 | low-battery-mode    | FIX-V3: Modo reposo por batería baja (RF-06, RF-09)
+//         |            |                     | Cambios: FeatureFlags.h(L56-91), AppController.cpp(L62-74,L186-280,L908-928)
 // v2.2.0  | 2026-01-13 | fallback-operadora  | FIX-V2: Fallback a escaneo cuando falla operadora guardada (RF-12)
 //         |            |                     | Cambios: FeatureFlags.h(L44-58), AppController.cpp(L385-455)
 // v2.1.0  | 2026-01-07 | cycle-timing        | FEAT-V2: Sistema de timing de ciclo FSM

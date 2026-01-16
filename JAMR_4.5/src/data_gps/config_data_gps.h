@@ -1,3 +1,12 @@
+/**
+ * @file config_data_gps.h
+ * @brief Configuración del módulo GPS/GNSS
+ * @version 1.0.0
+ * @date 2026-01-15
+ * 
+ * Parámetros de pines, timeouts y reintentos para GNSS en SIM7080G.
+ */
+
 #ifndef CONFIG_DATA_GPS_H
 #define CONFIG_DATA_GPS_H
 
