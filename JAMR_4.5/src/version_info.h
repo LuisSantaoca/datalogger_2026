@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.3.0"
-#define FW_VERSION_DATE     "2026-01-15"
-#define FW_VERSION_NAME     "low-battery-mode"
+#define FW_VERSION_STRING   "v2.5.0"
+#define FW_VERSION_DATE     "2026-01-28"
+#define FW_VERSION_NAME     "periodic-restart"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,12 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.5.0  | 2026-01-28 | periodic-restart    | FEAT-V4: Reinicio periódico preventivo cada 24h
+//         |            |                     | Acumula µs reales de sleep, restart en punto seguro
+//         |            |                     | Cambios: FeatureFlags.h(L145-175), AppController.cpp(L69-82,L903-937,L1276-1316)
+// v2.4.0  | 2026-01-26 | modem-poweroff-sleep | FIX-V4: Apagado robusto de modem antes de deep sleep
+//         |            |                      | Espera URC "NORMAL POWER DOWN" según datasheet SIM7080G
+//         |            |                      | Cambios: FeatureFlags.h(L99-120), LTEModule.cpp(L90-140), AppController.cpp(L1207-1218)
 // v2.3.0  | 2026-01-15 | low-battery-mode    | FIX-V3: Modo reposo por batería baja (RF-06, RF-09)
 //         |            |                     | Cambios: FeatureFlags.h(L56-91), AppController.cpp(L62-74,L186-280,L908-928)
 // v2.2.0  | 2026-01-13 | fallback-operadora  | FIX-V2: Fallback a escaneo cuando falla operadora guardada (RF-12)
@@ -42,7 +48,7 @@
 //         |            |                     | Cambios: version_info.h(nuevo), AppController.cpp(L30,L506)
 // --------|------------|---------------------|------------------------------------------
 // PENDIENTES:
-// v2.2.0  | PENDIENTE  | gps-retry           | Feature: Reintentar GPS si falla
+// v2.5.0  | PENDIENTE  | gps-retry           | Feature: Reintentar GPS si falla
 
 /*******************************************************************************
  * MACROS DERIVADAS (NO MODIFICAR)
@@ -57,7 +63,7 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    2
+#define FW_VERSION_MINOR    4
 #define FW_VERSION_PATCH    0
 
 /*******************************************************************************

@@ -76,6 +76,24 @@ RTC_DATA_ATTR static float g_lastVBatFiltered = 0.0f;
 #endif
 // ============ [FIX-V3 END] ============
 
+// ============ [FEAT-V4 START] Variables persistentes en RTC ============
+#if ENABLE_FEAT_V4_PERIODIC_RESTART
+/**
+ * @brief Acumulador de microsegundos de sleep planificados
+ * @details Sobrevive deep sleep. Se acumula con el sleep_time_us real de cada ciclo.
+ *          NO usa ciclos fijos - inmune a cambios de TIEMPO_SLEEP_ACTIVO.
+ */
+RTC_DATA_ATTR static uint64_t g_accum_sleep_us = 0;
+
+/**
+ * @brief Razón del último reinicio ejecutado por FEAT-V4
+ * @details Permite distinguir restart planificado de crash en boot.
+ *          Valores: FEAT4_RESTART_NONE, FEAT4_RESTART_PERIODIC, FEAT4_RESTART_EXECUTED
+ */
+RTC_DATA_ATTR static uint8_t g_last_restart_reason_feat4 = FEAT4_RESTART_NONE;
+#endif
+// ============ [FEAT-V4 END] ============
+
 /** @brief Número de muestras a descartar al inicio de cada lectura de sensor */
 static const uint8_t DISCARD_SAMPLES = 5;
 
@@ -884,6 +902,39 @@ void AppInit(const AppConfig& cfg) {
   printActiveFlags();
   // ============ [FEAT-V1 END] ============
 
+  // ============ [FEAT-V4 START] Validación anti boot-loop ============
+  #if ENABLE_FEAT_V4_PERIODIC_RESTART
+  {
+    esp_reset_reason_t reset_reason = esp_reset_reason();
+    
+    // Caso 1: Boot después de restart planificado FEAT-V4
+    if (g_last_restart_reason_feat4 == FEAT4_RESTART_EXECUTED) {
+      Serial.println(F("[FEAT-V4] Boot post-restart periódico detectado."));
+      Serial.printf("[FEAT-V4] Tiempo acumulado antes de restart: %llu us\n", g_accum_sleep_us);
+      
+      // Reset completo del acumulador y flag
+      g_accum_sleep_us = 0;
+      g_last_restart_reason_feat4 = FEAT4_RESTART_NONE;
+    }
+    // Caso 2: Power-on (power cycle completo) - resetear acumulador
+    else if (reset_reason == ESP_RST_POWERON) {
+      Serial.println(F("[FEAT-V4] Power-on detectado. Reseteando acumulador."));
+      g_accum_sleep_us = 0;
+      g_last_restart_reason_feat4 = FEAT4_RESTART_NONE;
+    }
+    // Caso 3: Wakeup normal de deep sleep - acumulador persiste (no hacer nada)
+    
+    // Log estado actual del acumulador
+    float pct = (FEAT_V4_THRESHOLD_US > 0) ? 
+                ((float)g_accum_sleep_us / FEAT_V4_THRESHOLD_US * 100.0f) : 0.0f;
+    Serial.printf("[FEAT-V4] Acumulador: %llu / %llu us (%.1f%%)\n",
+        g_accum_sleep_us, 
+        (uint64_t)FEAT_V4_THRESHOLD_US,
+        pct);
+  }
+  #endif
+  // ============ [FEAT-V4 END] ============
+
   sleepModule.begin();
   g_wakeupCause = sleepModule.getWakeupCause();
 
@@ -1208,6 +1259,64 @@ void AppLoop() {
       TIMING_FINALIZE(g_timing);
       TIMING_PRINT_SUMMARY(g_timing);
       printCycleSummary();  // Resumen de datos del ciclo
+      
+      // ============ [FIX-V4 START] Apagar modem antes de deep sleep ============
+      #if ENABLE_FIX_V4_MODEM_POWEROFF_SLEEP
+      // Garantizar apagado limpio del modem según datasheet SIM7080G
+      // Referencia: Hardware Design v1.05, Page 23, 27
+      // "It is strongly recommended to turn off the module through PWRKEY 
+      //  or AT command before disconnecting the module VBAT power."
+      Serial.println(F("[FIX-V4] Asegurando apagado de modem antes de sleep..."));
+      lte.powerOff();  // Ahora usa URC "NORMAL POWER DOWN" + PWRKEY fallback
+      Serial.println(F("[FIX-V4] Secuencia de apagado completada."));
+      #endif
+      // ============ [FIX-V4 END] ============
+      
+      // ============ [FEAT-V4 START] Reinicio periódico preventivo ============
+      #if ENABLE_FEAT_V4_PERIODIC_RESTART
+      {
+        // Acumular tiempo de sleep de ESTE ciclo
+        g_accum_sleep_us += g_cfg.sleep_time_us;
+        
+        // Log del progreso del acumulador
+        float pct = (FEAT_V4_THRESHOLD_US > 0) ? 
+                    ((float)g_accum_sleep_us / FEAT_V4_THRESHOLD_US * 100.0f) : 0.0f;
+        Serial.printf("[FEAT-V4] Acumulador: %llu / %llu us (%.1f%%) -> ", 
+            g_accum_sleep_us, (uint64_t)FEAT_V4_THRESHOLD_US, pct);
+        
+        // ¿Alcanzamos el threshold (24h por defecto)?
+        if (g_accum_sleep_us >= FEAT_V4_THRESHOLD_US) {
+          Serial.println(F("RESTART"));
+          Serial.println(F(""));
+          Serial.println(F("╔════════════════════════════════════════════════════╗"));
+          Serial.println(F("║  [FEAT-V4] REINICIO PERIODICO PREVENTIVO           ║"));
+          Serial.println(F("╠════════════════════════════════════════════════════╣"));
+          Serial.printf(   "║  Tiempo acumulado: %llu us\n", g_accum_sleep_us);
+          Serial.printf(   "║  Threshold: %llu us (%d horas)\n", (uint64_t)FEAT_V4_THRESHOLD_US, FEAT_V4_RESTART_HOURS);
+          Serial.printf(   "║  Reset reason anterior: %d\n", (int)esp_reset_reason());
+          Serial.println(F("║  Motivo: PERIODIC_24H (planificado)                ║"));
+          Serial.println(F("║  Ejecutando esp_restart() en punto seguro...       ║"));
+          Serial.println(F("╚════════════════════════════════════════════════════╝"));
+          
+          // Marcar que el restart fue intencional (anti boot-loop)
+          g_last_restart_reason_feat4 = FEAT4_RESTART_EXECUTED;
+          
+          // Integración FEAT-V3: Checkpoint antes de restart
+          CRASH_CHECKPOINT(CP_SLEEP_ENTER);  // Usar mismo checkpoint (es un "exit" limpio)
+          CRASH_SYNC_NVS();
+          
+          Serial.flush();  // Garantizar que logs se envían
+          delay(100);
+          
+          esp_restart();  // Reinicio limpio - NO llega a deep sleep
+          // Nunca llega aquí
+        } else {
+          Serial.println(F("sleep"));
+        }
+      }
+      #endif
+      // ============ [FEAT-V4 END] ============
+      
       CRASH_CHECKPOINT(CP_SLEEP_ENTER);  // FEAT-V3
       CRASH_SYNC_NVS();  // FEAT-V3: Guardar estado antes de sleep
       sleepModule.clearWakeupSources();

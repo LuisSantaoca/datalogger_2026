@@ -97,6 +97,32 @@
 /** @brief Ciclos consecutivos requeridos para considerar "estable" */
 #define FIX_V3_STABLE_CYCLES_REQUIRED     3
 
+/**
+ * FIX-V4: Apagado robusto de modem antes de deep sleep
+ * Sistema: LTE / Sleep
+ * Archivo: LTEModule.cpp, AppController.cpp
+ * Descripción: 
+ *   1. Mejora powerOff() para esperar URC "NORMAL POWER DOWN"
+ *   2. Garantiza apagado ANTES de entrar a deep sleep
+ *   Evita estados corruptos persistentes (modem zombi).
+ * Referencia: SIM7080G Hardware Design v1.05, Page 23, 27
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V4_MODEM_POWEROFF_SLEEP    1
+
+// ============================================================
+// FIX-V4: PARÁMETROS DE APAGADO ROBUSTO
+// ============================================================
+
+/** @brief Timeout para esperar URC "NORMAL POWER DOWN" (ms) */
+#define FIX_V4_URC_TIMEOUT_MS                 5000
+
+/** @brief Tiempo de espera después de PWRKEY fallback (ms) */
+#define FIX_V4_PWRKEY_WAIT_MS                 3000
+
+/** @brief Tiempo de espera adicional post-apagado antes de sleep (ms) */
+#define FIX_V4_POST_POWEROFF_DELAY_MS         500
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -121,6 +147,36 @@
  * Estado: Implementado
  */
 #define ENABLE_FEAT_V3_CRASH_DIAGNOSTICS  1
+
+/**
+ * FEAT-V4: Reinicio periódico preventivo (24h)
+ * Sistema: Core/AppController/Sleep
+ * Archivo: AppController.cpp
+ * Descripción: Reinicio limpio cada N horas para prevenir degradación
+ *              a largo plazo (memory leaks, fragmentación, estados corruptos).
+ *              - Acumula microsegundos reales de sleep (inmune a cambios de TIEMPO_SLEEP)
+ *              - Restart en punto seguro (después de FIX-V4, antes de deep sleep)
+ *              - Protección anti boot-loop con flag RTC
+ *              - Kill switch NVS: dis_feat4=true deshabilita sin reflashear
+ * Dependencias: FEAT-V1, FEAT-V3, FIX-V4
+ * Estado: Propuesto
+ */
+#define ENABLE_FEAT_V4_PERIODIC_RESTART       1
+
+// ============================================================
+// FEAT-V4: PARÁMETROS DE REINICIO PERIÓDICO
+// ============================================================
+
+/** @brief Horas entre reinicios preventivos (24 = producción, 1 = pruebas) */
+#define FEAT_V4_RESTART_HOURS                 24
+
+/** @brief Threshold calculado en microsegundos */
+#define FEAT_V4_THRESHOLD_US  ((uint64_t)FEAT_V4_RESTART_HOURS * 3600ULL * 1000000ULL)
+
+// Valores para g_last_restart_reason_feat4
+#define FEAT4_RESTART_NONE                    0   // No hay restart pendiente
+#define FEAT4_RESTART_PERIODIC                1   // Restart por tiempo >= 24h
+#define FEAT4_RESTART_EXECUTED                2   // Restart fue ejecutado
 
 // ============================================================
 // FUNCIÓN DE DEBUG: Imprimir flags activos
@@ -158,6 +214,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V3: Low Battery Mode"));
     #endif
     
+    #if ENABLE_FIX_V4_MODEM_POWEROFF_SLEEP
+    Serial.println(F("  [X] FIX-V4: Modem PowerOff Sleep (URC)"));
+    #else
+    Serial.println(F("  [ ] FIX-V4: Modem PowerOff Sleep (URC)"));
+    #endif
+    
     // FEAT Flags
     #if ENABLE_FEAT_V2_CYCLE_TIMING
     Serial.println(F("  [X] FEAT-V2: Cycle Timing"));
@@ -169,6 +231,14 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FEAT-V3: Crash Diagnostics"));
     #else
     Serial.println(F("  [ ] FEAT-V3: Crash Diagnostics"));
+    #endif
+    
+    #if ENABLE_FEAT_V4_PERIODIC_RESTART
+    Serial.print(F("  [X] FEAT-V4: Periodic Restart ("));
+    Serial.print(FEAT_V4_RESTART_HOURS);
+    Serial.println(F("h)"));
+    #else
+    Serial.println(F("  [ ] FEAT-V4: Periodic Restart"));
     #endif
     
     Serial.println(F("====================="));
