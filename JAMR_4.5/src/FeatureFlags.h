@@ -123,6 +123,24 @@
 /** @brief Tiempo de espera adicional post-apagado antes de sleep (ms) */
 #define FIX_V4_POST_POWEROFF_DELAY_MS         500
 
+/**
+ * FIX-V5: Watchdog de Sistema
+ * Sistema: Core/AppController
+ * Archivo: AppController.cpp
+ * Descripción: Task Watchdog Timer (TWDT) para recovery automático
+ *              de cuelgues de software (módem zombie, I2C lock, etc.).
+ *              Si AppLoop() no hace "feed" en 60 segundos, reset automático.
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V5_WATCHDOG    1
+
+// ============================================================
+// FIX-V5: PARÁMETROS DE WATCHDOG
+// ============================================================
+
+/** @brief Timeout del watchdog en segundos (60s = balance entre recovery y falsos positivos) */
+#define FIX_V5_WATCHDOG_TIMEOUT_S             60
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -218,6 +236,14 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FIX-V4: Modem PowerOff Sleep (URC)"));
     #else
     Serial.println(F("  [ ] FIX-V4: Modem PowerOff Sleep (URC)"));
+    #endif
+    
+    #if ENABLE_FIX_V5_WATCHDOG
+    Serial.print(F("  [X] FIX-V5: Watchdog ("));
+    Serial.print(FIX_V5_WATCHDOG_TIMEOUT_S);
+    Serial.println(F("s)"));
+    #else
+    Serial.println(F("  [ ] FIX-V5: Watchdog"));
     #endif
     
     // FEAT Flags

@@ -25,6 +25,7 @@
 
 #include <Arduino.h>
 #include <esp_sleep.h>
+#include <esp_task_wdt.h>  // FIX-V5: Watchdog de sistema
 #include <Preferences.h>
 #include "AppController.h"
 #include "src/version_info.h"   // FEAT-V0: Sistema de control de versiones centralizado
@@ -902,6 +903,16 @@ void AppInit(const AppConfig& cfg) {
   printActiveFlags();
   // ============ [FEAT-V1 END] ============
 
+  // ============ [FIX-V5 START] Inicializar Watchdog de Sistema ============
+  #if ENABLE_FIX_V5_WATCHDOG
+  esp_task_wdt_init(FIX_V5_WATCHDOG_TIMEOUT_S, true);  // panic on timeout
+  esp_task_wdt_add(NULL);  // Agregar tarea actual (loopTask)
+  Serial.print(F("[FIX-V5] Watchdog iniciado ("));
+  Serial.print(FIX_V5_WATCHDOG_TIMEOUT_S);
+  Serial.println(F("s)"));
+  #endif
+  // ============ [FIX-V5 END] ============
+
   // ============ [FEAT-V4 START] Validación anti boot-loop ============
   #if ENABLE_FEAT_V4_PERIODIC_RESTART
   {
@@ -1026,6 +1037,12 @@ void AppInit(const AppConfig& cfg) {
  */
 void AppLoop() {
   if (!g_initialized) return;
+
+  // ============ [FIX-V5 START] Feed del Watchdog ============
+  #if ENABLE_FIX_V5_WATCHDOG
+  esp_task_wdt_reset();  // Alimentar watchdog cada iteración del loop
+  #endif
+  // ============ [FIX-V5 END] ============
 
   // ============ [FEAT-V3 START] Comandos de diagnóstico Serial ============
   #if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
