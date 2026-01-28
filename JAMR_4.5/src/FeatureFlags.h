@@ -187,11 +187,25 @@
 // FEAT-V4: PARÁMETROS DE REINICIO PERIÓDICO
 // ============================================================
 
-/** @brief Horas entre reinicios preventivos (24 = producción, 1 = pruebas) */
+/** 
+ * @brief Modo de prueba para reinicio periódico
+ * 0 = Producción (usa FEAT_V4_RESTART_HOURS en horas)
+ * 1 = Stress test (usa FEAT_V4_RESTART_MINUTES en minutos)
+ */
+#define FEAT_V4_STRESS_TEST_MODE              1   // ← CAMBIAR A 0 PARA PRODUCCIÓN
+
+/** @brief Horas entre reinicios preventivos (producción) */
 #define FEAT_V4_RESTART_HOURS                 24
 
+/** @brief Minutos entre reinicios (solo para stress test) */
+#define FEAT_V4_RESTART_MINUTES               30
+
 /** @brief Threshold calculado en microsegundos */
-#define FEAT_V4_THRESHOLD_US  ((uint64_t)FEAT_V4_RESTART_HOURS * 3600ULL * 1000000ULL)
+#if FEAT_V4_STRESS_TEST_MODE
+    #define FEAT_V4_THRESHOLD_US  ((uint64_t)FEAT_V4_RESTART_MINUTES * 60ULL * 1000000ULL)
+#else
+    #define FEAT_V4_THRESHOLD_US  ((uint64_t)FEAT_V4_RESTART_HOURS * 3600ULL * 1000000ULL)
+#endif
 
 // Valores para g_last_restart_reason_feat4
 #define FEAT4_RESTART_NONE                    0   // No hay restart pendiente
