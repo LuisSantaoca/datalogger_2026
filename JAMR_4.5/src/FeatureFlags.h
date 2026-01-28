@@ -26,6 +26,40 @@
 #include <Arduino.h>
 
 // ============================================================
+// DEBUG FLAGS - SOLO PARA PRUEBAS (CAMBIAR A 0 EN PRODUCCIÓN)
+// ============================================================
+
+/** 
+ * @brief Modo de prueba de estrés con mocks (sin hardware real)
+ * Valida: FSM, memoria, buffer, restart periódico
+ * NO valida: comunicación real, EMI, modem
+ */
+#define DEBUG_STRESS_TEST_ENABLED             0   // 0=off, 1=stress con mocks
+
+/** @brief Simula envío LTE exitoso sin conectar a la red */
+#define DEBUG_MOCK_LTE                        0   // 0=LTE real, 1=simulado
+
+/** @brief Usa coordenadas GPS dummy sin encender módulo */
+#define DEBUG_MOCK_GPS                        0   // 0=GPS real, 1=simulado
+
+/** @brief Usa ICCID dummy sin encender modem */
+#define DEBUG_MOCK_ICCID                      0   // 0=ICCID real, 1=simulado
+
+/**
+ * @brief Modo diagnóstico EMI - COMUNICACIÓN REAL con logging detallado
+ * Valida: Integridad comunicación UART, detección de ruido EMI
+ * Requiere: Modem conectado, SIM insertada
+ * Output: Hex dump de respuestas AT, estadísticas de errores
+ */
+#define DEBUG_EMI_DIAGNOSTIC_ENABLED          1   // 0=off, 1=diagnóstico EMI
+
+/** @brief Número de ciclos de diagnóstico EMI antes de generar reporte */
+#define DEBUG_EMI_DIAGNOSTIC_CYCLES           20  // ~4 horas por reporte (6 reportes en 24h)
+
+/** @brief Log hex dump de cada respuesta AT (verbose) */
+#define DEBUG_EMI_LOG_RAW_HEX                 1   // 0=off, 1=hex dump
+
+// ============================================================
 // FIX FLAGS - Correcciones de bugs
 // ============================================================
 
@@ -191,14 +225,15 @@
  * @brief Modo de prueba para reinicio periódico
  * 0 = Producción (usa FEAT_V4_RESTART_HOURS en horas)
  * 1 = Stress test (usa FEAT_V4_RESTART_MINUTES en minutos)
+ * NOTA: Durante DEBUG_EMI_DIAGNOSTIC, usar 0 para completar ciclos
  */
-#define FEAT_V4_STRESS_TEST_MODE              1   // ← CAMBIAR A 0 PARA PRODUCCIÓN
+#define FEAT_V4_STRESS_TEST_MODE              0   // ← 0 para diagnóstico EMI
 
 /** @brief Horas entre reinicios preventivos (producción) */
 #define FEAT_V4_RESTART_HOURS                 24
 
 /** @brief Minutos entre reinicios (solo para stress test) */
-#define FEAT_V4_RESTART_MINUTES               30
+#define FEAT_V4_RESTART_MINUTES               5
 
 /** @brief Threshold calculado en microsegundos */
 #if FEAT_V4_STRESS_TEST_MODE
@@ -277,10 +312,42 @@ inline void printActiveFlags() {
     
     #if ENABLE_FEAT_V4_PERIODIC_RESTART
     Serial.print(F("  [X] FEAT-V4: Periodic Restart ("));
+    #if FEAT_V4_STRESS_TEST_MODE
+    Serial.print(FEAT_V4_RESTART_MINUTES);
+    Serial.println(F("min STRESS)"));
+    #else
     Serial.print(FEAT_V4_RESTART_HOURS);
     Serial.println(F("h)"));
+    #endif
     #else
     Serial.println(F("  [ ] FEAT-V4: Periodic Restart"));
+    #endif
+    
+    // DEBUG Flags (FEAT-V5)
+    #if DEBUG_STRESS_TEST_ENABLED
+    Serial.println(F(""));
+    Serial.println(F("  ⚠️  MODO STRESS TEST ACTIVO ⚠️"));
+    #if DEBUG_MOCK_GPS
+    Serial.println(F("  [X] DEBUG: Mock GPS"));
+    #endif
+    #if DEBUG_MOCK_ICCID
+    Serial.println(F("  [X] DEBUG: Mock ICCID"));
+    #endif
+    #if DEBUG_MOCK_LTE
+    Serial.println(F("  [X] DEBUG: Mock LTE"));
+    #endif
+    #endif
+    
+    // DEBUG EMI Diagnostic
+    #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+    Serial.println(F(""));
+    Serial.println(F("  🔬 MODO DIAGNÓSTICO EMI ACTIVO 🔬"));
+    Serial.print(F("  Ciclos por reporte: "));
+    Serial.println(DEBUG_EMI_DIAGNOSTIC_CYCLES);
+    #if DEBUG_EMI_LOG_RAW_HEX
+    Serial.println(F("  [X] Log hex dump habilitado"));
+    #endif
+    Serial.println(F("  Comunicación REAL con modem"));
     #endif
     
     Serial.println(F("====================="));

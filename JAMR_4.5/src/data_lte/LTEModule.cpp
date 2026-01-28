@@ -18,6 +18,132 @@
 #endif
 // ============ [FEAT-V3 END] ============
 
+// ============ [DEBUG-EMI START] Estadísticas de diagnóstico EMI ============
+#if DEBUG_EMI_DIAGNOSTIC_ENABLED
+/** @brief Estructura para estadísticas de diagnóstico EMI */
+struct EMIDiagStats {
+    uint32_t totalATCommands;      // Total comandos AT enviados
+    uint32_t successfulResponses;  // Respuestas exitosas (OK)
+    uint32_t errorResponses;       // Respuestas ERROR
+    uint32_t timeouts;             // Sin respuesta (timeout)
+    uint32_t corruptedResponses;   // Respuestas con bytes inválidos
+    uint32_t invalidCharsDetected; // Total caracteres inválidos detectados
+    uint32_t totalBytesReceived;   // Total bytes recibidos
+    uint32_t maxResponseTime;      // Tiempo máximo de respuesta (ms)
+    uint32_t minResponseTime;      // Tiempo mínimo de respuesta (ms)
+    uint32_t sumResponseTime;      // Suma para calcular promedio
+};
+
+static EMIDiagStats g_emiStats = {0, 0, 0, 0, 0, 0, 0, 0, UINT32_MAX, 0};
+
+/**
+ * @brief Detecta si un byte es válido para respuesta AT
+ * @param c Byte a validar
+ * @return true si es válido (ASCII imprimible o control común)
+ */
+static bool isValidATChar(uint8_t c) {
+    // Caracteres válidos: CR, LF, espacio-tilde (0x20-0x7E)
+    return (c == 0x0D || c == 0x0A || (c >= 0x20 && c <= 0x7E));
+}
+
+/**
+ * @brief Log hex dump de respuesta AT para diagnóstico EMI
+ */
+static void logRawHex(const String& response, Stream* debugSerial) {
+    if (!debugSerial) return;
+    
+    debugSerial->print(F("[EMI-RAW] "));
+    debugSerial->print(response.length());
+    debugSerial->print(F(" bytes: "));
+    
+    uint8_t invalidCount = 0;
+    for (size_t i = 0; i < response.length() && i < 64; i++) {
+        uint8_t c = (uint8_t)response[i];
+        debugSerial->printf("%02X ", c);
+        if (!isValidATChar(c)) {
+            invalidCount++;
+        }
+    }
+    
+    if (response.length() > 64) {
+        debugSerial->print(F("..."));
+    }
+    
+    if (invalidCount > 0) {
+        debugSerial->printf(" [!%d INVALID]", invalidCount);
+        g_emiStats.invalidCharsDetected += invalidCount;
+        g_emiStats.corruptedResponses++;
+    }
+    debugSerial->println();
+}
+
+/**
+ * @brief Imprime reporte de estadísticas EMI
+ */
+void printEMIDiagnosticReport(Stream* serial) {
+    if (!serial) return;
+    
+    serial->println();
+    serial->println(F("╔════════════════════════════════════════════════════════════╗"));
+    serial->println(F("║           REPORTE DIAGNÓSTICO EMI                          ║"));
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    serial->printf(   "║  Comandos AT enviados:        %6lu                       ║\n", g_emiStats.totalATCommands);
+    serial->printf(   "║  Respuestas exitosas (OK):    %6lu (%5.1f%%)              ║\n", 
+                      g_emiStats.successfulResponses,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.successfulResponses / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    serial->printf(   "║  Respuestas ERROR:            %6lu (%5.1f%%)              ║\n",
+                      g_emiStats.errorResponses,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.errorResponses / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    serial->printf(   "║  Timeouts (sin respuesta):    %6lu (%5.1f%%)              ║\n",
+                      g_emiStats.timeouts,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.timeouts / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    serial->printf(   "║  Respuestas CORRUPTAS:        %6lu (%5.1f%%)  ", 
+                      g_emiStats.corruptedResponses,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.corruptedResponses / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    if (g_emiStats.corruptedResponses > 0) {
+        serial->println(F("⚠️ EMI?  ║"));
+    } else {
+        serial->println(F("✅ OK    ║"));
+    }
+    serial->printf(   "║  Caracteres inválidos total:  %6lu                       ║\n", g_emiStats.invalidCharsDetected);
+    serial->printf(   "║  Bytes recibidos total:       %6lu                       ║\n", g_emiStats.totalBytesReceived);
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    serial->printf(   "║  Tiempo respuesta MIN:        %6lu ms                    ║\n", 
+                      g_emiStats.minResponseTime == UINT32_MAX ? 0 : g_emiStats.minResponseTime);
+    serial->printf(   "║  Tiempo respuesta MAX:        %6lu ms                    ║\n", g_emiStats.maxResponseTime);
+    serial->printf(   "║  Tiempo respuesta PROMEDIO:   %6lu ms                    ║\n",
+                      g_emiStats.successfulResponses > 0 ? g_emiStats.sumResponseTime / g_emiStats.successfulResponses : 0);
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    
+    // Evaluación
+    float corruptPct = g_emiStats.totalATCommands > 0 ? 
+                       (float)g_emiStats.corruptedResponses / g_emiStats.totalATCommands * 100.0f : 0.0f;
+    float timeoutPct = g_emiStats.totalATCommands > 0 ? 
+                       (float)g_emiStats.timeouts / g_emiStats.totalATCommands * 100.0f : 0.0f;
+    
+    if (corruptPct > 5.0f || timeoutPct > 10.0f) {
+        serial->println(F("║  DIAGNÓSTICO: ⚠️  PROBLEMAS DE EMI/INTEGRIDAD DETECTADOS  ║"));
+        serial->println(F("║  RECOMENDACIÓN: Revisar PCB, blindaje, desacoplo         ║"));
+    } else if (corruptPct > 0.0f || timeoutPct > 5.0f) {
+        serial->println(F("║  DIAGNÓSTICO: ⚡ Ruido menor detectado                    ║"));
+        serial->println(F("║  RECOMENDACIÓN: Monitorear en campo                      ║"));
+    } else {
+        serial->println(F("║  DIAGNÓSTICO: ✅ Comunicación limpia                      ║"));
+        serial->println(F("║  RECOMENDACIÓN: OK para producción                       ║"));
+    }
+    serial->println(F("╚════════════════════════════════════════════════════════════╝"));
+    serial->println();
+}
+
+/** @brief Reset estadísticas EMI */
+void resetEMIDiagnosticStats() {
+    memset(&g_emiStats, 0, sizeof(g_emiStats));
+    g_emiStats.minResponseTime = UINT32_MAX;
+}
+#endif
+// ============ [DEBUG-EMI END] ============
+
 LTEModule::LTEModule(HardwareSerial& serial) : _serial(serial), _debugEnabled(false), _debugSerial(nullptr) {
 }
 
@@ -132,6 +258,14 @@ bool LTEModule::isAlive() {
 bool LTEModule::sendATCommand(const char* cmd, uint32_t timeout) {
     clearBuffer();
     _serial.println(cmd);
+    
+    #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+    g_emiStats.totalATCommands++;
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->printf("[EMI-CMD] %s\n", cmd);
+    }
+    #endif
+    
     return waitForOK(timeout);
 }
 
@@ -154,16 +288,49 @@ bool LTEModule::waitForOK(uint32_t timeout) {
             char c = _serial.read();
             response += c;
             
+            #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+            g_emiStats.totalBytesReceived++;
+            #endif
+            
             if (response.indexOf("OK") != -1) {
+                #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+                uint32_t respTime = millis() - startTime;
+                g_emiStats.successfulResponses++;
+                g_emiStats.sumResponseTime += respTime;
+                if (respTime < g_emiStats.minResponseTime) g_emiStats.minResponseTime = respTime;
+                if (respTime > g_emiStats.maxResponseTime) g_emiStats.maxResponseTime = respTime;
+                
+                #if DEBUG_EMI_LOG_RAW_HEX
+                logRawHex(response, _debugSerial);
+                #endif
+                #endif
+                
                 return true;
             }
             
             if (response.indexOf("ERROR") != -1) {
+                #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+                g_emiStats.errorResponses++;
+                #if DEBUG_EMI_LOG_RAW_HEX
+                logRawHex(response, _debugSerial);
+                #endif
+                #endif
+                
                 return false;
             }
         }
         delay(10);
     }
+    
+    #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+    g_emiStats.timeouts++;
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->printf("[EMI-TIMEOUT] No response in %lu ms\n", timeout);
+        if (response.length() > 0) {
+            logRawHex(response, _debugSerial);
+        }
+    }
+    #endif
     
     return false;
 }

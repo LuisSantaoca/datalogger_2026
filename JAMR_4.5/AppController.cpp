@@ -58,6 +58,12 @@
 #include "src/data_sensors/RS485Module.h"
 #include "src/data_sensors/config_data_sensors.h"
 
+// ============ [DEBUG-EMI] Declaración externa de funciones de diagnóstico ============
+#if DEBUG_EMI_DIAGNOSTIC_ENABLED
+extern void printEMIDiagnosticReport(Stream* serial);
+extern void resetEMIDiagnosticStats();
+#endif
+
 #include "src/data_sleepwakeup/SLEEPModule.h"
 #include "src/data_sleepwakeup/config_data_sleepwakeup.h"
 
@@ -94,6 +100,29 @@ RTC_DATA_ATTR static uint64_t g_accum_sleep_us = 0;
 RTC_DATA_ATTR static uint8_t g_last_restart_reason_feat4 = FEAT4_RESTART_NONE;
 #endif
 // ============ [FEAT-V4 END] ============
+
+// ============ [FEAT-V5 START] Variables para stress test ============
+#if DEBUG_STRESS_TEST_ENABLED
+/** @brief Contador de ciclos desde último restart (persiste en deep sleep) */
+RTC_DATA_ATTR static uint32_t g_stress_cycle_count = 0;
+
+/** @brief Contador total de reinicios FEAT-V4 */
+RTC_DATA_ATTR static uint32_t g_stress_restart_count = 0;
+
+/** @brief Heap libre al inicio del ciclo (para detectar leaks) */
+static uint32_t g_stress_heap_start = 0;
+
+/** @brief Timestamp millis() al inicio del ciclo (para calcular tiempo real) */
+static uint32_t g_stress_cycle_start_ms = 0;
+#endif
+// ============ [FEAT-V5 END] ============
+
+// ============ [DEBUG-EMI START] Variables para diagnóstico EMI ============
+#if DEBUG_EMI_DIAGNOSTIC_ENABLED
+/** @brief Contador de ciclos para diagnóstico EMI */
+static uint32_t g_emiDiagCycleCount = 0;
+#endif
+// ============ [DEBUG-EMI END] ============
 
 /** @brief Número de muestras a descartar al inicio de cada lectura de sensor */
 static const uint8_t DISCARD_SAMPLES = 5;
@@ -924,6 +953,12 @@ void AppInit(const AppConfig& cfg) {
   {
     esp_reset_reason_t reset_reason = esp_reset_reason();
     
+    // [FEAT-V5] Log de contadores stress test al inicio (verificar persistencia RTC)
+    #if DEBUG_STRESS_TEST_ENABLED
+    Serial.printf("[STRESS] Boot - restart_count=%lu, cycle_count=%lu (RTC persist check)\n",
+                  g_stress_restart_count, g_stress_cycle_count);
+    #endif
+    
     // Caso 1: Boot después de restart planificado FEAT-V4
     if (g_last_restart_reason_feat4 == FEAT4_RESTART_EXECUTED) {
       Serial.println(F("[FEAT-V4] Boot post-restart periódico detectado."));
@@ -933,11 +968,16 @@ void AppInit(const AppConfig& cfg) {
       g_accum_sleep_us = 0;
       g_last_restart_reason_feat4 = FEAT4_RESTART_NONE;
     }
-    // Caso 2: Power-on (power cycle completo) - resetear acumulador
+    // Caso 2: Power-on (power cycle completo) - resetear acumulador y contadores stress
     else if (reset_reason == ESP_RST_POWERON) {
       Serial.println(F("[FEAT-V4] Power-on detectado. Reseteando acumulador."));
       g_accum_sleep_us = 0;
       g_last_restart_reason_feat4 = FEAT4_RESTART_NONE;
+      #if DEBUG_STRESS_TEST_ENABLED
+      g_stress_restart_count = 0;
+      g_stress_cycle_count = 0;
+      Serial.println(F("[STRESS] Power-on: contadores reseteados a 0"));
+      #endif
     }
     // Caso 3: Wakeup normal de deep sleep - acumulador persiste (no hacer nada)
     
@@ -1068,7 +1108,16 @@ void AppLoop() {
   #endif
   // ============ [FEAT-V3 END] ============
 
+  // ============ [STRESS TEST] Skip BLE wait en modo stress ============
+  #if DEBUG_STRESS_TEST_ENABLED
+  // En stress test: desactivar BLE inmediatamente para ciclos rápidos
+  if (ble.isActive()) {
+    Serial.println(F("[STRESS] Skipping BLE wait - desactivando inmediatamente"));
+    ble.end();
+  }
+  #else
   ble.update();
+  #endif
 
   switch (g_state) {
     case AppState::BleOnly: {
@@ -1076,6 +1125,38 @@ void AppLoop() {
         TIMING_RESET(g_timing);  // Inicia timing del ciclo cuando termina BLE
         g_lteCycleSuccess = false;  // Reset para CYCLE SUMMARY
         g_lastCSQ = 99;  // Reset CSQ
+        
+        // ============ [DEBUG-EMI] Log de inicio de ciclo diagnóstico EMI ============
+        #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+        g_emiDiagCycleCount++;
+        Serial.println();
+        Serial.println(F("╔════════════════════════════════════════════════════════════╗"));
+        Serial.printf(   "║  [EMI-DIAG] CICLO #%lu / %d                                  ║\n", 
+                        g_emiDiagCycleCount, DEBUG_EMI_DIAGNOSTIC_CYCLES);
+        Serial.printf(   "║  Heap libre: %lu bytes                                     ║\n", ESP.getFreeHeap());
+        Serial.println(F("║  Modo: COMUNICACIÓN REAL (mocks desactivados)              ║"));
+        Serial.println(F("╚════════════════════════════════════════════════════════════╝"));
+        #endif
+        
+        // ============ [FEAT-V5] Log de inicio de ciclo stress test ============
+        #if DEBUG_STRESS_TEST_ENABLED
+        g_stress_cycle_count++;
+        g_stress_heap_start = ESP.getFreeHeap();
+        g_stress_cycle_start_ms = millis();  // Track tiempo real del ciclo
+        Serial.println();
+        Serial.println(F("\n[STRESS] ══════════════════════════════════════"));
+        Serial.printf("[STRESS] CICLO #%lu (restart #%lu)\n", g_stress_cycle_count, g_stress_restart_count);
+        Serial.printf("[STRESS] Heap libre: %lu bytes\n", g_stress_heap_start);
+        #if ENABLE_FEAT_V4_PERIODIC_RESTART
+        uint64_t threshold = FEAT_V4_THRESHOLD_US;
+        uint8_t pct = (uint8_t)((g_accum_sleep_us * 100ULL) / threshold);
+        uint32_t secsToRestart = (uint32_t)((threshold - g_accum_sleep_us) / 1000000ULL);
+        Serial.printf("[STRESS] Tiempo acum: %llu / %llu us (%u%%)\n", g_accum_sleep_us, threshold, pct);
+        Serial.printf("[STRESS] Proximo restart en: ~%lu seg\n", secsToRestart);
+        #endif
+        Serial.println(F("[STRESS] ══════════════════════════════════════"));
+        #endif
+        
         g_state = AppState::Cycle_ReadSensors;
       }
       break;
@@ -1146,6 +1227,21 @@ void AppLoop() {
       fillZeros(g_lng, COORD_LEN);
       fillZeros(g_alt, ALT_LEN);
 
+      #if DEBUG_MOCK_GPS
+      // [DEBUG][FEAT-V5] GPS simulado para stress test
+      {
+        unsigned long mockStart = millis();
+        formatCoord(g_lat, sizeof(g_lat), 19.4326f);   // CDMX dummy lat
+        formatCoord(g_lng, sizeof(g_lng), -99.1332f);  // CDMX dummy lng
+        formatAlt(g_alt, sizeof(g_alt), 2240.0f);      // CDMX dummy alt
+        Serial.printf("[MOCK][GPS] Coords: %s, %s, alt=%s (%lums)\n", 
+                      g_lat, g_lng, g_alt, millis() - mockStart);
+      }
+      TIMING_END(g_timing, gps);
+      g_state = AppState::Cycle_GetICCID;
+      break;
+      #endif
+
       GpsFix fix;
       bool gotFix = false;
 
@@ -1180,12 +1276,23 @@ void AppLoop() {
     }
     case AppState::Cycle_GetICCID: {
       TIMING_START(g_timing, iccid);
+      
+      #if DEBUG_MOCK_ICCID
+      // [DEBUG][FEAT-V5] ICCID simulado para stress test
+      {
+        unsigned long mockStart = millis();
+        g_iccid = "89520000000000000000";  // ICCID dummy
+        Serial.printf("[MOCK][ICCID] %s (%lums)\n", g_iccid.c_str(), millis() - mockStart);
+      }
+      #else
       if (lte.powerOn()) {
         g_iccid = lte.getICCID();
         lte.powerOff();
       } else {
         g_iccid = "";
       }
+      #endif
+      
       TIMING_END(g_timing, iccid);
       g_state = AppState::Cycle_BuildFrame;
       break;
@@ -1260,9 +1367,26 @@ void AppLoop() {
 
     case AppState::Cycle_SendLTE: {
       TIMING_START(g_timing, sendLte);
+      
+      #if DEBUG_MOCK_LTE
+      // [DEBUG][FEAT-V5] LTE simulado para stress test - marca todo como enviado
+      {
+        unsigned long mockStart = millis();
+        String lines[20];
+        int count = 0;
+        if (buffer.readUnprocessedLines(lines, 20, count)) {
+          for (int i = 0; i < count; i++) {
+            buffer.markLineAsProcessed(i);
+          }
+        }
+        Serial.printf("[MOCK][LTE] %d tramas marcadas como enviadas (%lums)\n", count, millis() - mockStart);
+      }
+      #else
       Serial.println("[DEBUG][APP] Iniciando envio por LTE...");
       (void)sendBufferOverLTE_AndMarkProcessed();
       Serial.println("[DEBUG][APP] Envio completado, pasando a CompactBuffer");
+      #endif
+      
       TIMING_END(g_timing, sendLte);
       g_state = AppState::Cycle_CompactBuffer;
       break;
@@ -1283,6 +1407,36 @@ void AppLoop() {
       TIMING_PRINT_SUMMARY(g_timing);
       printCycleSummary();  // Resumen de datos del ciclo
       
+      // ============ [DEBUG-EMI] Reporte de diagnóstico EMI ============
+      #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+      Serial.printf("\n[EMI-DIAG] Fin ciclo %lu / %d\n", g_emiDiagCycleCount, DEBUG_EMI_DIAGNOSTIC_CYCLES);
+      
+      if (g_emiDiagCycleCount >= DEBUG_EMI_DIAGNOSTIC_CYCLES) {
+        // Generar reporte final
+        printEMIDiagnosticReport(&Serial);
+        
+        // Resetear para siguiente ronda
+        resetEMIDiagnosticStats();
+        g_emiDiagCycleCount = 0;
+        
+        Serial.println(F("[EMI-DIAG] *** Estadísticas reseteadas. Iniciando nueva ronda ***"));
+      }
+      #endif
+      
+      // ============ [FEAT-V5] Log de fin de ciclo stress test ============
+      #if DEBUG_STRESS_TEST_ENABLED
+      {
+        uint32_t heapNow = ESP.getFreeHeap();
+        int32_t heapDelta = (int32_t)heapNow - (int32_t)g_stress_heap_start;
+        Serial.println(F("\n[STRESS] ────────── FIN CICLO ──────────"));
+        Serial.printf("[STRESS] Heap: %lu -> %lu (%+ld bytes)%s\n", 
+                      g_stress_heap_start, heapNow, heapDelta,
+                      (heapDelta < -500) ? " ⚠️ LEAK?" : "");
+        Serial.printf("[STRESS] Ciclos totales: %lu\n", g_stress_cycle_count);
+        Serial.println(F("[STRESS] ──────────────────────────────\n"));
+      }
+      #endif
+      
       // ============ [FIX-V4 START] Apagar modem antes de deep sleep ============
       #if ENABLE_FIX_V4_MODEM_POWEROFF_SLEEP
       // Garantizar apagado limpio del modem según datasheet SIM7080G
@@ -1298,8 +1452,21 @@ void AppLoop() {
       // ============ [FEAT-V4 START] Reinicio periódico preventivo ============
       #if ENABLE_FEAT_V4_PERIODIC_RESTART
       {
-        // Acumular tiempo de sleep de ESTE ciclo
+        // Acumular tiempo: en stress test usa tiempo REAL, en producción usa sleep planificado
+        #if DEBUG_STRESS_TEST_ENABLED
+        // En stress test: acumular SOLO tiempo real del ciclo (awake)
+        // No sumamos sleep porque no hacemos deep sleep real en stress test
+        uint32_t cycle_real_ms = millis() - g_stress_cycle_start_ms;
+        uint64_t time_to_add = (uint64_t)cycle_real_ms * 1000ULL;  // ms -> us
+        g_accum_sleep_us += time_to_add;
+        Serial.printf("[STRESS] Tiempo ciclo real: %lu ms (%llu us agregados)\\n", 
+                      cycle_real_ms, time_to_add);
+        Serial.printf("[STRESS] Acumulador ahora: %llu / %llu us\\n", 
+                      g_accum_sleep_us, (uint64_t)FEAT_V4_THRESHOLD_US);
+        #else
+        // En producción: acumular solo tiempo de sleep planificado
         g_accum_sleep_us += g_cfg.sleep_time_us;
+        #endif
         
         // Log del progreso del acumulador
         float pct = (FEAT_V4_THRESHOLD_US > 0) ? 
@@ -1310,12 +1477,26 @@ void AppLoop() {
         // ¿Alcanzamos el threshold (24h por defecto)?
         if (g_accum_sleep_us >= FEAT_V4_THRESHOLD_US) {
           Serial.println(F("RESTART"));
+          
+          // [FEAT-V5] Incrementar contador de restarts
+          #if DEBUG_STRESS_TEST_ENABLED
+          uint32_t cycles_completed = g_stress_cycle_count;  // Guardar antes de reset
+          g_stress_restart_count++;
+          Serial.printf("[STRESS] *** RESTART #%lu alcanzado tras %lu ciclos ***\n", 
+                        g_stress_restart_count, cycles_completed);
+          g_stress_cycle_count = 0;  // Reset ciclos para nuevo período (después del log)
+          #endif
+          
           Serial.println(F(""));
           Serial.println(F("╔════════════════════════════════════════════════════╗"));
           Serial.println(F("║  [FEAT-V4] REINICIO PERIODICO PREVENTIVO           ║"));
           Serial.println(F("╠════════════════════════════════════════════════════╣"));
           Serial.printf(   "║  Tiempo acumulado: %llu us\n", g_accum_sleep_us);
+          #if FEAT_V4_STRESS_TEST_MODE
+          Serial.printf(   "║  Threshold: %llu us (%d minutos STRESS)\n", (uint64_t)FEAT_V4_THRESHOLD_US, FEAT_V4_RESTART_MINUTES);
+          #else
           Serial.printf(   "║  Threshold: %llu us (%d horas)\n", (uint64_t)FEAT_V4_THRESHOLD_US, FEAT_V4_RESTART_HOURS);
+          #endif
           Serial.printf(   "║  Reset reason anterior: %d\n", (int)esp_reset_reason());
           Serial.println(F("║  Motivo: PERIODIC_24H (planificado)                ║"));
           Serial.println(F("║  Ejecutando esp_restart() en punto seguro...       ║"));
@@ -1339,6 +1520,15 @@ void AppLoop() {
       }
       #endif
       // ============ [FEAT-V4 END] ============
+      
+      // ============ [STRESS TEST] Skip deep sleep para ciclos rápidos ============
+      #if DEBUG_STRESS_TEST_ENABLED
+      Serial.println(F("[STRESS] Skipping deep sleep - volviendo a BleOnly inmediatamente"));
+      delay(500);  // Pequeña pausa para no saturar logs
+      g_state = AppState::BleOnly;  // Volver al inicio del ciclo
+      break;  // Salir del case sin hacer deep sleep
+      #endif
+      // ============ [STRESS TEST END] ============
       
       CRASH_CHECKPOINT(CP_SLEEP_ENTER);  // FEAT-V3
       CRASH_SYNC_NVS();  // FEAT-V3: Guardar estado antes de sleep
