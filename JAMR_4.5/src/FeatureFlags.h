@@ -130,9 +130,11 @@
  * Descripción: Task Watchdog Timer (TWDT) para recovery automático
  *              de cuelgues de software (módem zombie, I2C lock, etc.).
  *              Si AppLoop() no hace "feed" en 60 segundos, reset automático.
- * Estado: Implementado
+ * NOTA: ESP-IDF v5.x ya tiene TWDT habilitado por defecto.
+ *       Deshabilitar para evitar conflicto y boot loops.
+ * Estado: Deshabilitado (sistema ya lo provee)
  */
-#define ENABLE_FIX_V5_WATCHDOG    1
+#define ENABLE_FIX_V5_WATCHDOG    0
 
 // ============================================================
 // FIX-V5: PARÁMETROS DE WATCHDOG

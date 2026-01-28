@@ -905,7 +905,13 @@ void AppInit(const AppConfig& cfg) {
 
   // ============ [FIX-V5 START] Inicializar Watchdog de Sistema ============
   #if ENABLE_FIX_V5_WATCHDOG
-  esp_task_wdt_init(FIX_V5_WATCHDOG_TIMEOUT_S, true);  // panic on timeout
+  // ESP-IDF v5.x requiere estructura de configuración
+  const esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = FIX_V5_WATCHDOG_TIMEOUT_S * 1000,  // Convertir a ms
+    .idle_core_mask = 0,                             // No monitorear idle tasks
+    .trigger_panic = true                            // Reset en timeout
+  };
+  esp_task_wdt_init(&wdt_config);
   esp_task_wdt_add(NULL);  // Agregar tarea actual (loopTask)
   Serial.print(F("[FIX-V5] Watchdog iniciado ("));
   Serial.print(FIX_V5_WATCHDOG_TIMEOUT_S);

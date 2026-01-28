@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.6.0"
+#define FW_VERSION_STRING   "v2.5.0"
 #define FW_VERSION_DATE     "2026-01-28"
-#define FW_VERSION_NAME     "watchdog"
+#define FW_VERSION_NAME     "periodic-restart"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,9 +27,6 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
-// v2.6.0  | 2026-01-28 | watchdog            | FIX-V5: Watchdog de sistema (60s)
-//         |            |                     | Recovery automático de cuelgues (módem zombie, I2C lock, etc.)
-//         |            |                     | Cambios: FeatureFlags.h(L113-125), AppController.cpp(L27,L906-913,L1040-1044)
 // v2.5.0  | 2026-01-28 | periodic-restart    | FEAT-V4: Reinicio periódico preventivo cada 24h
 //         |            |                     | Acumula µs reales de sleep, restart en punto seguro
 //         |            |                     | Cambios: FeatureFlags.h(L145-175), AppController.cpp(L69-82,L903-937,L1276-1316)
