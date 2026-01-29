@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.6.0"
-#define FW_VERSION_DATE     "2026-01-28"
-#define FW_VERSION_NAME     "production-diagnostics"
+#define FW_VERSION_STRING   "v2.7.1"
+#define FW_VERSION_DATE     "2026-01-29"
+#define FW_VERSION_NAME     "serial-diag-commands"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,17 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.7.1  | 2026-01-29 | serial-diag-commands    | FEAT-V9: Comandos Serial STATS y LOG para diagnóstico
+//         |            |                         | Conecta ProdDiag::printStats() y printEventLog() al Serial
+//         |            |                         | Scope V3/V7 independiente, setTimeout(50ms) anti-bloqueo
+//         |            |                         | Comandos: STATS, LOG (adicionales a DIAG, HISTORY, CLEAR)
+//         |            |                         | Cambios: AppController.cpp(L1165-1198)
+// v2.7.0  | 2026-01-28 | minimal-testing         | FEAT-V8: Sistema de tests minimalista via serial
+//         |            |                         | 4 tests críticos: CRC16, FSM batería, contadores, parsing AT
+//         |            |                         | Comandos: TEST_CRC, TEST_BAT, TEST_COUNT, TEST_PARSE, TEST_HELP
+//         |            |                         | Zero overhead cuando flag = 0
+//         |            |                         | Cambios: TestModule.h/cpp(nuevo), config_tests.h(nuevo)
+//         |            |                         | FeatureFlags.h(L233-247,L362-366), AppController.cpp(L47-50,L1176-1179)
 // v2.6.0  | 2026-01-28 | production-diagnostics | FEAT-V7: Diagnóstico de producción persistente
 //         |            |                        | Contadores: ciclos, LTE OK/FAIL, EMI, crashes, batería baja
 //         |            |                        | Log de eventos circular, comandos Serial: STATS, LOG, CLEAR
@@ -69,8 +80,8 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    6
-#define FW_VERSION_PATCH    0
+#define FW_VERSION_MINOR    7
+#define FW_VERSION_PATCH    1
 
 /*******************************************************************************
  * FUNCIÓN DE IMPRESIÓN
