@@ -263,6 +263,14 @@ bool ProdDiag::loadStats() {
     return true;
 }
 
+// ============ [FEAT-V9 START] Función para actualizar epoch ============
+void ProdDiag::setCurrentEpoch(uint32_t epoch) {
+    if (epoch > 0) {
+        g_lastKnownEpoch = epoch;
+    }
+}
+// ============ [FEAT-V9 END] ============
+
 // ============================================================
 // IMPLEMENTACIÓN - LOG DE EVENTOS
 // ============================================================
@@ -521,8 +529,10 @@ void ProdDiag::setResetReason(uint8_t reason) {
     switch(reason) {
         case 1: bootChar = 'P'; break;  // Poweron
         case 3: bootChar = 'S'; break;  // Software
+        case 5: bootChar = 'D'; break;  // Deepsleep (FIX: faltaba)
         case 6: bootChar = 'W'; break;  // Task WDT
         case 7: bootChar = 'W'; break;  // WDT
+        case 8: bootChar = 'D'; break;  // Deepsleep (alternativo)
         case 9: bootChar = 'B'; break;  // Brownout
     }
     logEvent(EVT_BOOT, (uint16_t)bootChar);

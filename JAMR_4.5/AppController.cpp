@@ -1396,6 +1396,12 @@ void AppLoop() {
       g_epoch = getEpochString();
       g_lastEpoch = (uint32_t)g_epoch.toInt();  // FEAT-V7: Guardar epoch numérico
 
+      // ============ [FEAT-V9 START] Actualizar epoch en ProductionDiag ============
+      #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+      ProdDiag::setCurrentEpoch(g_lastEpoch);
+      #endif
+      // ============ [FEAT-V9 END] ============
+
       formatter.reset();
       formatter.setIccid(g_iccid.c_str());
       formatter.setEpoch(g_epoch.c_str());

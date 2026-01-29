@@ -219,6 +219,15 @@ namespace ProdDiag {
      */
     void logEvent(char eventCode, uint16_t data, uint32_t epoch = 0);
     
+    /**
+     * @brief Actualiza el epoch conocido para timestamps en eventos
+     * @param epoch Timestamp Unix actual
+     * 
+     * Llamar cuando se obtenga el epoch del RTC para que los eventos
+     * posteriores tengan timestamp correcto.
+     */
+    void setCurrentEpoch(uint32_t epoch);
+    
     // ---- Comandos Serial ----
     
     /**
