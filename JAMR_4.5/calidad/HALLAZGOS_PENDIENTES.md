@@ -3,7 +3,53 @@
 **Proyecto:** JAMR_4.5 (sensores_rv03)  
 **Versión Actual:** v2.5.0 (periodic-restart)  
 **Última Actualización:** 2026-01-28  
-**Origen:** Auditoría de Trazabilidad + Desarrollo Continuo
+**Origen:** Auditoría de Trazabilidad + Desarrollo Continuo + Diagnóstico EMI
+
+---
+
+## 🔬 HALLAZGOS DIAGNÓSTICO EMI (2026-01-28)
+
+### Prueba Realizada
+- **Duración:** ~5.5 horas (22.9% → 23.6% del ciclo 24h)
+- **Ciclos observados:** 2+ ciclos completos con comunicación real
+- **Firmware:** v2.5.0 con DEBUG_EMI_DIAGNOSTIC_ENABLED=1
+
+### Resultados
+
+| Métrica | Valor | Estado |
+|---------|-------|--------|
+| Bytes analizados | ~200+ | - |
+| Bytes corruptos (0xFF/0x00) | **0** | ✅ |
+| Caracteres inválidos | **0** | ✅ |
+| Corrupción total | **0.0%** | ✅ |
+| Timeouts (power off) | ~15 | ⚪ Normal |
+
+### Hex Dumps Verificados
+```
+AT+CNMP=38   → 41 54 2B 43...4F 4B ✅
+AT+CMNB=1    → 41 54 2B 43...4F 4B ✅
+AT+CGDCONT   → 41 54 2B 43...4F 4B ✅
+AT+CNACT    → 41 54 2B 43...4F 4B ✅
+AT+CACLOSE   → 41 54 2B 43...4F 4B ✅
+```
+Todos los bytes en rango ASCII válido (0x20-0x7E, 0x0D, 0x0A).
+
+### Veredicto
+```
+╔══════════════════════════════════════╗
+║  EMI STATUS: PCB OK ✅               ║
+╠══════════════════════════════════════╣
+║  No se detectó ruido/EMI en UART     ║
+║  Comunicación modem estable          ║
+║  Diseño PCB 2 capas: ACEPTABLE       ║
+╚══════════════════════════════════════╝
+```
+
+### Bug Detectado y Corregido
+- **Problema:** Contador `g_emiDiagCycleCount` se reseteaba en cada deep sleep
+- **Causa:** Variable `static` en lugar de `RTC_DATA_ATTR`
+- **Fix:** Cambiado a `RTC_DATA_ATTR static uint32_t g_emiDiagCycleCount`
+- **Commit:** feat-v7/production-diagnostics
 
 ---
 
@@ -63,6 +109,27 @@
 
 ### 🟠 Prioridad Alta
 
+#### FEAT-V7: Diagnóstico de Producción (NUEVO)
+- **Estado:** 📝 **DOCUMENTADO** (2026-01-28)
+- **Archivo Doc:** `fixs-feats/feats/FEAT_V7_PRODUCTION_DIAGNOSTICS.md`
+- **Descripción:** Sistema de diagnóstico ligero siempre activo
+- **Incluye:**
+  - Contadores persistentes (ciclos, LTE, batería, EMI)
+  - Log de eventos críticos (LittleFS circular)
+  - Detección EMI sin overhead (conteo, no hex dump)
+  - Comandos Serial: STATS, LOG, CLEAR
+- **Prioridad:** Implementar antes de despliegue largo en campo
+
+---
+
+#### FEAT-V6: Almacenamiento Reportes EMI (NUEVO)
+- **Estado:** 📝 **DOCUMENTADO** (2026-01-28)
+- **Archivo Doc:** `fixs-feats/feats/FEAT_V6_EMI_REPORT_STORAGE.md`
+- **Descripción:** Guardar reportes EMI en LittleFS para revisión post-mortem
+- **Prioridad:** Baja (FEAT-V7 lo reemplaza con mejor diseño)
+
+---
+
 #### FIX-V5: Protección Brown-out Activa
 - **Estado:** 📋 Por evaluar en validación de 30 días
 - **Requisito:** RNF-02
@@ -114,14 +181,21 @@
 | FIX-V2 | Fix | - | ✅ Implementado | v2.2.0 |
 | FIX-V3 | Fix | - | ✅ Implementado | v2.3.0 |
 | FIX-V4 | Fix | - | ✅ Implementado | v2.4.0 |
-| FIX-V5 | Fix | 🟠 Alta | 📋 Por evaluar | - |
+| FIX-V5 | Fix | � Media | 📋 Por evaluar | - |
 | FIX-V6 | Fix | 🟡 Media | 📋 Pendiente | - |
 | FEAT-V2 | Feat | - | ✅ Implementado | v2.1.0 |
 | FEAT-V3 | Feat | - | ✅ Implementado | v2.3.0 |
 | FEAT-V4 | Feat | - | ✅ Implementado | v2.5.0 |
-| FEAT-V5 | Feat | 🟠 Alta | 📋 Pendiente | - |
-| FEAT-V6 | Feat | 🟡 Media | 📋 Pendiente | - |
-| FEAT-V7 | Feat | 🟡 Media | 📋 Pendiente | - |
+| FEAT-V5 | Feat | 🟡 Media | 📝 Debug only | - |
+| FEAT-V6 | Feat | ⚪ Baja | 📝 Documentado | - |
+| **FEAT-V7** | **Feat** | **🟠 Alta** | **📝 Documentado** | **-** |
+
+### Diagnóstico EMI
+| Métrica | Resultado |
+|---------|-----------|
+| PCB 2 capas | ✅ Sin problemas detectados |
+| UART corrupción | 0.0% |
+| Recomendación | Continuar con diseño actual |
 
 ---
 

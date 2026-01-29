@@ -119,8 +119,8 @@ static uint32_t g_stress_cycle_start_ms = 0;
 
 // ============ [DEBUG-EMI START] Variables para diagnóstico EMI ============
 #if DEBUG_EMI_DIAGNOSTIC_ENABLED
-/** @brief Contador de ciclos para diagnóstico EMI */
-static uint32_t g_emiDiagCycleCount = 0;
+/** @brief Contador de ciclos para diagnóstico EMI (persiste en deep sleep) */
+RTC_DATA_ATTR static uint32_t g_emiDiagCycleCount = 0;
 #endif
 // ============ [DEBUG-EMI END] ============
 
