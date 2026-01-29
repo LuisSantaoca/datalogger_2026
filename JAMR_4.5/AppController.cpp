@@ -45,6 +45,12 @@
 #endif
 // ============ [FEAT-V7 END] ============
 
+// ============ [FEAT-V8 START] Include Testing System ============
+#if ENABLE_FEAT_V8_TESTING
+#include "src/data_tests/TestModule.h"  // FEAT-V8
+#endif
+// ============ [FEAT-V8 END] ============
+
 #include "src/data_buffer/BUFFERModule.h"
 #include "src/data_buffer/BLEModule.h"
 #include "src/data_buffer/config_data_buffer.h"
@@ -1156,13 +1162,16 @@ void AppLoop() {
   #endif
   // ============ [FIX-V5 END] ============
 
-  // ============ [FEAT-V3 START] Comandos de diagnóstico Serial ============
-  #if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
+  // ============ [FEAT-V9 START] Comandos Serial Diagnóstico ============
+  // Lector Serial INDEPENDIENTE de flags específicos
   if (Serial.available()) {
+    Serial.setTimeout(50);  // Prevenir bloqueo por monitor serial abierto
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     cmd.toUpperCase();
     
+    // Comandos FEAT-V3: CrashDiagnostics
+    #if ENABLE_FEAT_V3_CRASH_DIAGNOSTICS
     if (cmd == "DIAG") {
       CrashDiag::printReport();
     } else if (cmd == "HISTORY") {
@@ -1170,9 +1179,24 @@ void AppLoop() {
     } else if (cmd == "CLEAR") {
       CrashDiag::clearHistory();
     }
+    #endif
+    
+    // Comandos FEAT-V7: ProductionDiag
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    if (cmd == "STATS") {
+      ProdDiag::printStats();
+    } else if (cmd == "LOG") {
+      ProdDiag::printEventLog();
+    }
+    #endif
   }
+  // ============ [FEAT-V9 END] ============
+
+  // ============ [FEAT-V8 START] Comandos de testing Serial ============
+  #if ENABLE_FEAT_V8_TESTING
+  TestModule::processCommand(&Serial);
   #endif
-  // ============ [FEAT-V3 END] ============
+  // ============ [FEAT-V8 END] ============
 
   // ============ [STRESS TEST] Skip BLE wait en modo stress ============
   #if DEBUG_STRESS_TEST_ENABLED
