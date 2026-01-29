@@ -9,10 +9,10 @@
 | **ID** | FEAT-V7 |
 | **Tipo** | Feature (Diagnóstico) |
 | **Sistema** | Core / LittleFS / LTEModule |
-| **Archivos** | `AppController.cpp`, `LTEModule.cpp`, nuevo `ProductionDiag.h/.cpp` |
-| **Estado** | 📝 Documentado (pendiente implementar) |
+| **Archivos** | `AppController.cpp`, `LTEModule.cpp`, `ProductionDiag.h/.cpp` |
+| **Estado** | ✅ Implementado |
 | **Fecha** | 2026-01-28 |
-| **Prioridad** | Media |
+| **Versión** | v2.7.0+ |
 | **Depende de** | FEAT-V3 (Crash Diagnostics) |
 
 ---
@@ -253,14 +253,37 @@ const char* getEMIVerdict() {
 
 ## 🧪 CRITERIOS DE ACEPTACIÓN
 
-- [ ] Stats se persisten entre power cycles
-- [ ] Eventos se registran con timestamp correcto
-- [ ] Comando STATS muestra resumen completo
-- [ ] Comando LOG muestra últimos 20 eventos
-- [ ] EMI detection funciona sin overhead notable
-- [ ] Verdicts EMI son correctos según umbrales
-- [ ] Archivo events.txt no crece indefinidamente
-- [ ] CRC detecta corrupción de stats.bin
+- [x] Stats se persisten entre power cycles
+- [x] Eventos se registran con timestamp correcto (post-bugfix v2.7.1)
+- [x] Comando STATS muestra resumen completo (via FEAT-V9)
+- [x] Comando LOG muestra últimos 20 eventos (via FEAT-V9)
+- [x] EMI detection funciona sin overhead notable
+- [x] Verdicts EMI son correctos según umbrales
+- [x] Archivo events.txt no crece indefinidamente
+- [x] CRC detecta corrupción de stats.bin
+
+---
+
+## 🐛 BUGFIXES (v2.7.1)
+
+### Bug 1: DEEPSLEEP no mapeado
+
+**Archivo:** `ProductionDiag.cpp` → `setResetReason()`
+
+**Problema:** Reset reasons 5 y 8 (deep sleep) no tenían case en el switch, resultando en `bootChar = 'U'` (Unknown).
+
+**Fix:** Añadidos `case 5:` y `case 8:` con `bootChar = 'D'`
+
+### Bug 2: Epoch siempre 0 en eventos
+
+**Archivo:** `ProductionDiag.cpp/.h`, `AppController.cpp`
+
+**Problema:** `g_lastKnownEpoch` solo se actualizaba en `saveStats()` (antes de sleep), pero eventos de boot se registran antes.
+
+**Fix:** 
+- Nueva función `setCurrentEpoch(uint32_t epoch)`
+- Se llama desde `Cycle_BuildFrame` cuando el epoch RTC está disponible
+- Eventos de boot siguen con epoch=0 (comportamiento esperado - no hay RTC aún)
 
 ---
 

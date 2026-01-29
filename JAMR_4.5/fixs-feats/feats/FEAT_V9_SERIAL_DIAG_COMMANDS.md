@@ -10,9 +10,9 @@
 | **Tipo** | Feature (Diagnóstico) |
 | **Sistema** | Core / Diagnóstico |
 | **Archivo Principal** | `AppController.cpp` |
-| **Estado** | 📋 Propuesto |
+| **Estado** | ✅ Implementado |
 | **Fecha** | 2026-01-29 |
-| **Versión Target** | v2.7.1 |
+| **Versión** | v2.7.1 |
 | **Depende de** | FEAT-V3 (CrashDiag), FEAT-V7 (ProductionDiag) |
 
 ---
@@ -236,4 +236,31 @@ Códigos: B=Boot L=LTE_Fail F=Fallback E=LowBat_Enter X=LowBat_Exit
 |-------|--------|---------|
 | 2026-01-29 | Documentación creada | - |
 | 2026-01-29 | Revisión: separar scope V3/V7, agregar setTimeout(50ms) | - |
-| - | Pendiente implementación | v2.7.1 |
+| 2026-01-29 | ✅ Implementación comandos STATS/LOG | v2.7.1 |
+| 2026-01-29 | 🐛 Bugfix DEEPSLEEP: casos 5,8 en setResetReason() | v2.7.1 |
+| 2026-01-29 | 🐛 Bugfix epoch=0: añadido setCurrentEpoch() | v2.7.1 |
+
+---
+
+## 🐛 BUGFIXES APLICADOS
+
+### Bug 1: DEEPSLEEP mostraba 'U' (Unknown)
+
+**Síntoma:** Comando `LOG` mostraba `85` (ASCII 'U') en lugar de `68` (ASCII 'D') para boots desde deep sleep.
+
+**Causa:** `setResetReason()` no tenía cases para `ESP_SLEEP_WAKEUP_DEEP_SLEEP` (5) ni el caso alternativo (8).
+
+**Fix:** Añadidos `case 5:` y `case 8:` → `bootChar = 'D'`
+
+### Bug 2: Todos los eventos tenían epoch=0
+
+**Síntoma:** Comando `LOG` mostraba `0,B,68` - epoch siempre cero.
+
+**Causa:** `g_lastKnownEpoch` solo se actualizaba en `saveStats()` (antes de deep sleep), pero eventos se registran antes de obtener timestamp RTC.
+
+**Fix:** 
+1. Nueva función `ProdDiag::setCurrentEpoch(uint32_t epoch)`
+2. Se llama desde `Cycle_BuildFrame` después de `getEpochString()`
+3. Eventos posteriores al primer ciclo tendrán timestamp correcto
+
+**Nota:** Eventos de BOOT siempre tendrán epoch=0 porque se registran antes de obtener el timestamp RTC - esto es comportamiento esperado.
