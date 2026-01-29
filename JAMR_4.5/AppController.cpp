@@ -1072,8 +1072,14 @@ void AppInit(const AppConfig& cfg) {
   lte.setDebug(true, &Serial);
 
   if (g_wakeupCause == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    #if ENABLE_FEAT_V9_BLE_CONFIG
     ble.begin("RV03");
     g_state = AppState::BleOnly;
+    #else
+    // BLE deshabilitado - saltar directamente a ciclo de sensores
+    Serial.println(F("[INFO][APP] BLE DESHABILITADO - Iniciando ciclo directo"));
+    g_state = AppState::Cycle_ReadSensors;
+    #endif
     g_firstCycleAfterBoot = true;
   } else {
     g_state = AppState::Cycle_ReadSensors;
@@ -1171,6 +1177,7 @@ void AppLoop() {
   // ============ [STRESS TEST] Skip BLE wait en modo stress ============
   #if DEBUG_STRESS_TEST_ENABLED
   // En stress test: desactivar BLE inmediatamente para ciclos rápidos
+  #if ENABLE_FEAT_V9_BLE_CONFIG
   if (ble.isActive()) {
     Serial.println(F("[STRESS] Skipping BLE wait - desactivando inmediatamente"));
     ble.end();
@@ -1178,8 +1185,10 @@ void AppLoop() {
   #else
   ble.update();
   #endif
+  #endif
 
   switch (g_state) {
+    #if ENABLE_FEAT_V9_BLE_CONFIG
     case AppState::BleOnly: {
       if (!ble.isActive()) {
         TIMING_RESET(g_timing);  // Inicia timing del ciclo cuando termina BLE
@@ -1221,6 +1230,7 @@ void AppLoop() {
       }
       break;
     }
+    #endif
 
     case AppState::Cycle_ReadSensors: {
       TIMING_START(g_timing, sensors);
@@ -1599,9 +1609,13 @@ void AppLoop() {
       
       // ============ [STRESS TEST] Skip deep sleep para ciclos rápidos ============
       #if DEBUG_STRESS_TEST_ENABLED
-      Serial.println(F("[STRESS] Skipping deep sleep - volviendo a BleOnly inmediatamente"));
+      Serial.println(F("[STRESS] Skipping deep sleep - volviendo a inicio inmediatamente"));
       delay(500);  // Pequeña pausa para no saturar logs
-      g_state = AppState::BleOnly;  // Volver al inicio del ciclo
+      #if ENABLE_FEAT_V9_BLE_CONFIG
+      g_state = AppState::BleOnly;  // Volver al inicio con BLE
+      #else
+      g_state = AppState::Cycle_ReadSensors;  // Saltar BLE, directo a sensores
+      #endif
       break;  // Salir del case sin hacer deep sleep
       #endif
       // ============ [STRESS TEST END] ============

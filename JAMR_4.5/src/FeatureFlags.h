@@ -231,6 +231,17 @@
  */
 #define ENABLE_FEAT_V7_PRODUCTION_DIAG        1
 
+/**
+ * FEAT-V9: BLE Configuration Mode
+ * Sistema: Configuración/BLE
+ * Archivo: AppController.cpp, src/data_buffer/BLEModule.cpp
+ * Descripción: Modo de configuración vía Bluetooth Low Energy en primer arranque.
+ *              Consume ~60 segundos en boot inicial.
+ *              Deshabilitar para pruebas rápidas o producción sin reconfiguración.
+ * Estado: Implementado (puede deshabilitarse temporalmente)
+ */
+#define ENABLE_FEAT_V9_BLE_CONFIG             0  // 0=deshabilitado, 1=habilitado
+
 // ============================================================
 // FEAT-V4: PARÁMETROS DE REINICIO PERIÓDICO
 // ============================================================
@@ -341,6 +352,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FEAT-V7: Production Diagnostics"));
     #else
     Serial.println(F("  [ ] FEAT-V7: Production Diagnostics"));
+    #endif
+    
+    #if ENABLE_FEAT_V9_BLE_CONFIG
+    Serial.println(F("  [X] FEAT-V9: BLE Config Mode"));
+    #else
+    Serial.println(F("  [ ] FEAT-V9: BLE Config Mode (DISABLED)"));
     #endif
     
     // DEBUG Flags (FEAT-V5)
