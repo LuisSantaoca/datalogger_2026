@@ -217,6 +217,20 @@
  */
 #define ENABLE_FEAT_V4_PERIODIC_RESTART       1
 
+/**
+ * FEAT-V7: Diagnóstico de Producción
+ * Sistema: Diagnóstico/Estadísticas
+ * Archivo: src/data_diagnostics/ProductionDiag.h, .cpp, config_production_diag.h
+ * Descripción: Sistema de contadores y eventos persistentes para análisis en campo.
+ *              - Contadores: ciclos, envíos LTE OK/FAIL, EMI, batería baja, crashes
+ *              - Log de eventos circular con timestamps
+ *              - Comandos Serial: STATS, LOG, CLEAR, EXPORT
+ *              - Persistencia en LittleFS con CRC16
+ * Dependencias: LittleFS, FEAT-V3 (opcional, para registrar crashes)
+ * Estado: Implementado
+ */
+#define ENABLE_FEAT_V7_PRODUCTION_DIAG        1
+
 // ============================================================
 // FEAT-V4: PARÁMETROS DE REINICIO PERIÓDICO
 // ============================================================
@@ -321,6 +335,12 @@ inline void printActiveFlags() {
     #endif
     #else
     Serial.println(F("  [ ] FEAT-V4: Periodic Restart"));
+    #endif
+    
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    Serial.println(F("  [X] FEAT-V7: Production Diagnostics"));
+    #else
+    Serial.println(F("  [ ] FEAT-V7: Production Diagnostics"));
     #endif
     
     // DEBUG Flags (FEAT-V5)

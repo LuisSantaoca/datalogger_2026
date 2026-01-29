@@ -39,6 +39,12 @@
 #endif
 // ============ [FEAT-V3 END] ============
 
+// ============ [FEAT-V7 START] Include Production Diagnostics ============
+#if ENABLE_FEAT_V7_PRODUCTION_DIAG
+#include "src/data_diagnostics/ProductionDiag.h"  // FEAT-V7
+#endif
+// ============ [FEAT-V7 END] ============
+
 #include "src/data_buffer/BUFFERModule.h"
 #include "src/data_buffer/BLEModule.h"
 #include "src/data_buffer/config_data_buffer.h"
@@ -215,6 +221,9 @@ static String g_iccid;
 
 /** @brief Timestamp Unix epoch en formato string */
 static String g_epoch;
+
+/** @brief Timestamp Unix epoch numérico para diagnósticos (FEAT-V7) */
+static uint32_t g_lastEpoch = 0;
 
 /** @brief Latitud en formato string con 6 decimales */
 static char g_lat[COORD_LEN + 1];
@@ -448,6 +457,13 @@ static bool evaluateBatteryState(float vBatFiltered) {
             Serial.println(F("V                  ║"));
             Serial.println(F("║  Radio/LTE BLOQUEADO hasta recuperacion            ║"));
             Serial.println(F("╚════════════════════════════════════════════════════╝"));
+            
+            // ============ [FEAT-V7 START] Registrar entrada a low battery ============
+            #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+            ProdDiag::recordLowBatteryEnter((uint16_t)(vBatFiltered * 100));  // Centésimas
+            #endif
+            // ============ [FEAT-V7 END] ============
+            
             return false;
         }
         return true;  // Operar normalmente
@@ -474,6 +490,13 @@ static bool evaluateBatteryState(float vBatFiltered) {
                 Serial.println(F("║  Condicion de estabilidad cumplida                ║"));
                 Serial.println(F("║  Reanudando operacion normal                       ║"));
                 Serial.println(F("╚════════════════════════════════════════════════════╝"));
+                
+                // ============ [FEAT-V7 START] Registrar salida de low battery ============
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::recordLowBatteryExit(ProdDiag::getStats().lowBatteryCycles);
+                #endif
+                // ============ [FEAT-V7 END] ============
+                
                 return true;
             }
         } else {
@@ -491,6 +514,13 @@ static bool evaluateBatteryState(float vBatFiltered) {
         Serial.print(F("[FIX-V3] Modo REPOSO activo. vBat: "));
         Serial.print(vBatFiltered, 2);
         Serial.println(F("V. Esperando recuperacion..."));
+        
+        // ============ [FEAT-V7 START] Incrementar ciclos en modo reposo ============
+        #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+        ProdDiag::incrementLowBatteryCycle();
+        #endif
+        // ============ [FEAT-V7 END] ============
+        
         return false;
     }
 }
@@ -749,6 +779,12 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
     Serial.print(bestScore);
     Serial.println(")");
     
+    // ============ [FEAT-V7 START] Registrar fallback de operadora ============
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::recordOperatorFallback();
+    #endif
+    // ============ [FEAT-V7 END] ============
+    
     // --- VALIDACIÓN DE SCORE: Verificar que hay señal válida ---
     if (bestScore <= -999) {
       Serial.println("[ERROR][APP] Ninguna operadora con señal válida.");
@@ -849,11 +885,22 @@ static bool sendBufferOverLTE_AndMarkProcessed() {
     Serial.println(OPERADORAS[operadoraAUsar].nombre);
     CRASH_MARK_SUCCESS();  // FEAT-V3: Marcar ciclo exitoso
     g_lteCycleSuccess = true;  // Marcar ciclo LTE exitoso para CYCLE SUMMARY
+    
+    // ============ [FEAT-V7 START] Registrar envío exitoso ============
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::recordLTESendOk();
+    #endif
+    // ============ [FEAT-V7 END] ============
   } else {
     if (tieneOperadoraGuardada) {
       preferences.remove("lastOperator");
       Serial.println("[WARN][APP] Envio fallido. Operadora eliminada. Próximo ciclo escaneará todas.");
     }
+    // ============ [FEAT-V7 START] Registrar envío fallido ============
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::recordLTESendFail();
+    #endif
+    // ============ [FEAT-V7 END] ============
   }
   preferences.end();
 
@@ -920,6 +967,12 @@ void AppInit(const AppConfig& cfg) {
     Serial.println(F("\n⚠️ CRASH DETECTADO EN CICLO ANTERIOR"));
     CrashDiag::printReport();
     Serial.println(F("Escribe 'HISTORY' para ver historial completo\n"));
+    
+    // ============ [FEAT-V7 START] Registrar crash en ProductionDiag ============
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::recordCrash(CrashDiag::getLastCheckpoint());
+    #endif
+    // ============ [FEAT-V7 END] ============
   }
   #endif
   // ============ [FEAT-V3 END] ============
@@ -1003,6 +1056,13 @@ void AppInit(const AppConfig& cfg) {
     return;
   }
   CRASH_CHECKPOINT(CP_BOOT_LITTLEFS_OK);  // FEAT-V3
+
+  // ============ [FEAT-V7 START] Inicializar Production Diagnostics ============
+  #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+  ProdDiag::init();
+  ProdDiag::setResetReason((uint8_t)esp_reset_reason());
+  #endif
+  // ============ [FEAT-V7 END] ============
 
   (void)adcSensor.begin();
   (void)i2cSensor.begin();
@@ -1300,6 +1360,7 @@ void AppLoop() {
     case AppState::Cycle_BuildFrame: {
       TIMING_START(g_timing, buildFrame);
       g_epoch = getEpochString();
+      g_lastEpoch = (uint32_t)g_epoch.toInt();  // FEAT-V7: Guardar epoch numérico
 
       formatter.reset();
       formatter.setIccid(g_iccid.c_str());
@@ -1407,6 +1468,15 @@ void AppLoop() {
       TIMING_PRINT_SUMMARY(g_timing);
       printCycleSummary();  // Resumen de datos del ciclo
       
+      // ============ [FEAT-V7 START] Finalizar ciclo y guardar diagnósticos ============
+      #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+      ProdDiag::incrementCycle();
+      ProdDiag::evaluateCycleEMI();
+      ProdDiag::saveStats(g_lastEpoch);  // Usar último epoch conocido
+      ProdDiag::resetCycleEMI();  // Resetear para próximo ciclo
+      #endif
+      // ============ [FEAT-V7 END] ============
+      
       // ============ [DEBUG-EMI] Reporte de diagnóstico EMI ============
       #if DEBUG_EMI_DIAGNOSTIC_ENABLED
       Serial.printf("\n[EMI-DIAG] Fin ciclo %lu / %d\n", g_emiDiagCycleCount, DEBUG_EMI_DIAGNOSTIC_CYCLES);
@@ -1501,6 +1571,12 @@ void AppLoop() {
           Serial.println(F("║  Motivo: PERIODIC_24H (planificado)                ║"));
           Serial.println(F("║  Ejecutando esp_restart() en punto seguro...       ║"));
           Serial.println(F("╚════════════════════════════════════════════════════╝"));
+          
+          // ============ [FEAT-V7 START] Registrar reinicio periódico ============
+          #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+          ProdDiag::recordPeriodicRestart(ProdDiag::getStats().totalCycles);
+          #endif
+          // ============ [FEAT-V7 END] ============
           
           // Marcar que el restart fue intencional (anti boot-loop)
           g_last_restart_reason_feat4 = FEAT4_RESTART_EXECUTED;

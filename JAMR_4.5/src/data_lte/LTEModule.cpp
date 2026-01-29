@@ -18,6 +18,12 @@
 #endif
 // ============ [FEAT-V3 END] ============
 
+// ============ [FEAT-V7 START] Include Production Diagnostics ============
+#if ENABLE_FEAT_V7_PRODUCTION_DIAG
+#include "../data_diagnostics/ProductionDiag.h"  // FEAT-V7
+#endif
+// ============ [FEAT-V7 END] ============
+
 // ============ [DEBUG-EMI START] Estadísticas de diagnóstico EMI ============
 #if DEBUG_EMI_DIAGNOSTIC_ENABLED
 /** @brief Estructura para estadísticas de diagnóstico EMI */
@@ -305,6 +311,12 @@ bool LTEModule::waitForOK(uint32_t timeout) {
                 #endif
                 #endif
                 
+                // ============ [FEAT-V7 START] Contar EMI para diagnóstico producción ============
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::countEMI(response);
+                #endif
+                // ============ [FEAT-V7 END] ============
+                
                 return true;
             }
             
@@ -315,6 +327,12 @@ bool LTEModule::waitForOK(uint32_t timeout) {
                 logRawHex(response, _debugSerial);
                 #endif
                 #endif
+                
+                // ============ [FEAT-V7 START] Contar EMI para diagnóstico producción ============
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::countEMI(response);
+                #endif
+                // ============ [FEAT-V7 END] ============
                 
                 return false;
             }
@@ -331,6 +349,12 @@ bool LTEModule::waitForOK(uint32_t timeout) {
         }
     }
     #endif
+    
+    // ============ [FEAT-V7 START] Registrar timeout AT ============
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::recordATTimeout();
+    #endif
+    // ============ [FEAT-V7 END] ============
     
     return false;
 }

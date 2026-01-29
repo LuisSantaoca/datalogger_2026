@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.5.0"
+#define FW_VERSION_STRING   "v2.6.0"
 #define FW_VERSION_DATE     "2026-01-28"
-#define FW_VERSION_NAME     "periodic-restart"
+#define FW_VERSION_NAME     "production-diagnostics"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,12 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.6.0  | 2026-01-28 | production-diagnostics | FEAT-V7: Diagnóstico de producción persistente
+//         |            |                        | Contadores: ciclos, LTE OK/FAIL, EMI, crashes, batería baja
+//         |            |                        | Log de eventos circular, comandos Serial: STATS, LOG, CLEAR
+//         |            |                        | Cambios: ProductionDiag.h/cpp(nuevo), config_production_diag.h(nuevo)
+//         |            |                        | AppController.cpp(L42-44,L460,L493,L517,L782,L892,L903,L959,L1061-1064,L1472-1476,L1575)
+//         |            |                        | LTEModule.cpp(L21-23,L315,L332,L354), FeatureFlags.h(L203-215,L323-327)
 // v2.5.0  | 2026-01-28 | periodic-restart    | FEAT-V4: Reinicio periódico preventivo cada 24h
 //         |            |                     | Acumula µs reales de sleep, restart en punto seguro
 //         |            |                     | Cambios: FeatureFlags.h(L145-175), AppController.cpp(L69-82,L903-937,L1276-1316)
@@ -63,7 +69,7 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    4
+#define FW_VERSION_MINOR    6
 #define FW_VERSION_PATCH    0
 
 /*******************************************************************************
