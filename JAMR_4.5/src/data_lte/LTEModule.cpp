@@ -270,7 +270,7 @@ bool LTEModule::powerOff() {
     if (!success) {
         debugPrint("[LTE] ERROR: Modem no responde a reset - posible zombie");
         #if ENABLE_FEAT_V7_PRODUCTION_DIAG
-        ProdDiag::logEvent("POWEROFF_FAIL");
+        ProdDiag::logEvent(EVT_MODEM_ZOMBIE, 0);  // FIX-V6: Registrar evento zombie
         #endif
     }
     return success;

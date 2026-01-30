@@ -96,4 +96,7 @@
 /** @brief Timeout AT */
 #define EVT_AT_TIMEOUT      'T'
 
+/** @brief Modem zombie - no responde a reset (FIX-V6) */
+#define EVT_MODEM_ZOMBIE    'Z'
+
 #endif // CONFIG_PRODUCTION_DIAG_H
