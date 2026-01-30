@@ -222,6 +222,62 @@ bool LTEModule::powerOn() {
 bool LTEModule::powerOff() {
     debugPrint("Apagando SIM7080G...");
     
+#if ENABLE_FIX_V6_MODEM_POWER_SEQUENCE
+    // ============ [FIX-V6 START] Apagado robusto según datasheet SIMCOM ============
+    
+    // 1. Vaciar buffer UART (puede tener URCs pendientes)
+    while (_serial.available()) _serial.read();
+    
+    // 2. Intentar apagado graceful con AT+CPOWD=1
+    debugPrint("[LTE] Enviando AT+CPOWD=1");
+    _serial.println(LTE_POWER_OFF_COMMAND);
+    
+    // 3. CRÍTICO: Esperar URC "NORMAL POWER DOWN" (datasheet: ~1.8s típico)
+    unsigned long start = millis();
+    while (millis() - start < FIX_V6_URC_WAIT_TIMEOUT_MS) {
+        if (_serial.available()) {
+            String response = _serial.readStringUntil('\n');
+            response.trim();  // Limpiar \r\n y espacios
+            if (response.indexOf("NORMAL POWER DOWN") != -1) {
+                debugPrint("[LTE] URC recibido - apagado confirmado");
+                delay(500);
+                return true;
+            }
+        }
+        delay(100);
+    }
+    
+    // 4. Si no recibió URC, intentar PWRKEY extendido
+    debugPrint("[LTE] WARN: URC no recibido, intentando PWRKEY");
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(FIX_V6_PWRKEY_OFF_TIME_MS);
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    delay(FIX_V6_TOFF_TON_BUFFER_MS);  // Esperar settling
+    
+    if (!isAlive()) {
+        debugPrint("[LTE] Apagado por PWRKEY exitoso");
+        return true;
+    }
+    
+    // 5. ÚLTIMO RECURSO: Reset forzado (>12.6s según datasheet)
+    debugPrint("[LTE] WARN: Forzando reset por PWRKEY >12.6s");
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(FIX_V6_PWRKEY_RESET_TIME_MS);
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    delay(FIX_V6_TOFF_TON_BUFFER_MS);
+    
+    bool success = !isAlive();
+    if (!success) {
+        debugPrint("[LTE] ERROR: Modem no responde a reset - posible zombie");
+        #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+        ProdDiag::logEvent("POWEROFF_FAIL");
+        #endif
+    }
+    return success;
+    
+    // ============ [FIX-V6 END] ============
+#else
+    // Código original preservado
     if (!isAlive()) {
         debugPrint("Modulo ya esta apagado");
         return true;
@@ -246,6 +302,7 @@ bool LTEModule::powerOff() {
     
     debugPrint("Error: No se pudo apagar el modulo");
     return false;
+#endif
 }
 
 bool LTEModule::isAlive() {

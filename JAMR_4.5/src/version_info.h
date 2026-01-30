@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.7.1"
+#define FW_VERSION_STRING   "v2.8.0"
 #define FW_VERSION_DATE     "2026-01-29"
-#define FW_VERSION_NAME     "serial-diag-commands"
+#define FW_VERSION_NAME     "modem-power-sequence"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,11 +27,26 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.8.0  | 2026-01-29 | modem-power-sequence    | FIX-V6: Secuencia robusta de power on/off del modem
+//         |            |                         | Implementa especificaciones datasheet SIMCOM SIM7080G:
+//         |            |                         | - Espera URC "NORMAL POWER DOWN" en powerOff (timeout 10s)
+//         |            |                         | - PWRKEY extendido 1.5s (>1s encender, >1.2s apagar)
+//         |            |                         | - Reset forzado >12.6s como último recurso
+//         |            |                         | - Manejo PSM: AT+CPSMS=0 después de wake
+//         |            |                         | - Buffer flush antes de AT commands
+//         |            |                         | - Múltiples reintentos AT post-wake (primer cmd perdido)
+//         |            |                         | Resuelve: modem zombie en dispositivos 6948, 6963
+//         |            |                         | Cambios: FeatureFlags.h(L145-185), LTEModule.cpp(L185-310)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V6_MODEM_POWER_SEQUENCE.md
+//         |            |                         |       calidad/INVESTIGACION_MODEM_ZOMBIE.md
 // v2.7.1  | 2026-01-29 | serial-diag-commands    | FEAT-V9: Comandos Serial STATS y LOG para diagnóstico
 //         |            |                         | Conecta ProdDiag::printStats() y printEventLog() al Serial
 //         |            |                         | Scope V3/V7 independiente, setTimeout(50ms) anti-bloqueo
 //         |            |                         | Comandos: STATS, LOG (adicionales a DIAG, HISTORY, CLEAR)
-//         |            |                         | Cambios: AppController.cpp(L1165-1198)
+//         |            |                         | Bugfix: DEEPSLEEP (cases 5,8) en setResetReason()
+//         |            |                         | Bugfix: epoch=0 → añadido setCurrentEpoch() en Cycle_BuildFrame
+//         |            |                         | Cambios: AppController.cpp(L1165-1198,L1397-1403)
+//         |            |                         |          ProductionDiag.cpp(L262-268,L524-528), ProductionDiag.h(L243-251)
 // v2.7.0  | 2026-01-28 | minimal-testing         | FEAT-V8: Sistema de tests minimalista via serial
 //         |            |                         | 4 tests críticos: CRC16, FSM batería, contadores, parsing AT
 //         |            |                         | Comandos: TEST_CRC, TEST_BAT, TEST_COUNT, TEST_PARSE, TEST_HELP

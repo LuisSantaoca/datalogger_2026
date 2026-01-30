@@ -51,13 +51,13 @@
  * Requiere: Modem conectado, SIM insertada
  * Output: Hex dump de respuestas AT, estadísticas de errores
  */
-#define DEBUG_EMI_DIAGNOSTIC_ENABLED          1   // 0=off, 1=diagnóstico EMI
+#define DEBUG_EMI_DIAGNOSTIC_ENABLED          0   // 0=off, 1=diagnóstico EMI (PRODUCCIÓN: off)
 
 /** @brief Número de ciclos de diagnóstico EMI antes de generar reporte */
 #define DEBUG_EMI_DIAGNOSTIC_CYCLES           20  // ~4 horas por reporte (6 reportes en 24h)
 
 /** @brief Log hex dump de cada respuesta AT (verbose) */
-#define DEBUG_EMI_LOG_RAW_HEX                 1   // 0=off, 1=hex dump
+#define DEBUG_EMI_LOG_RAW_HEX                 0   // 0=off, 1=hex dump (PRODUCCIÓN: off)
 
 // ============================================================
 // FIX FLAGS - Correcciones de bugs
@@ -177,6 +177,49 @@
 /** @brief Timeout del watchdog en segundos (60s = balance entre recovery y falsos positivos) */
 #define FIX_V5_WATCHDOG_TIMEOUT_S             60
 
+/**
+ * FIX-V6: Secuencia robusta de power on/off del modem SIM7080G
+ * Sistema: LTE/Modem
+ * Archivo: LTEModule.cpp
+ * Descripción: Implementa especificaciones del datasheet SIMCOM:
+ *   - Espera URC "NORMAL POWER DOWN" en powerOff()
+ *   - PWRKEY extendido (1.5s) y reset forzado (>12.6s)
+ *   - Manejo de PSM con AT+CPSMS=0
+ *   - Reintentos múltiples de AT después de wake
+ * Documentación: fixs-feats/fixs/FIX_V6_MODEM_POWER_SEQUENCE.md
+ * Investigación: calidad/INVESTIGACION_MODEM_ZOMBIE.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V6_MODEM_POWER_SEQUENCE    1
+
+// ============================================================
+// FIX-V6: PARÁMETROS DE POWER SEQUENCE (Datasheet SIM7080G)
+// ============================================================
+
+/** @brief PWRKEY LOW para encender (>1s, usar 1.5s) */
+#define FIX_V6_PWRKEY_ON_TIME_MS              1500
+
+/** @brief PWRKEY LOW para apagar (>1.2s, usar 1.5s) */
+#define FIX_V6_PWRKEY_OFF_TIME_MS             1500
+
+/** @brief PWRKEY LOW para reset forzado interno (>12.6s) */
+#define FIX_V6_PWRKEY_RESET_TIME_MS           13000
+
+/** @brief Delay para UART ready (1.8s según datasheet + margen) */
+#define FIX_V6_UART_READY_DELAY_MS            2500
+
+/** @brief Buffer entre power off y on (datasheet: ≥2s) */
+#define FIX_V6_TOFF_TON_BUFFER_MS             2000
+
+/** @brief Timeout para esperar URC "NORMAL POWER DOWN" */
+#define FIX_V6_URC_WAIT_TIMEOUT_MS            10000
+
+/** @brief Número de reintentos de AT después de wake */
+#define FIX_V6_AT_RETRY_COUNT                 5
+
+/** @brief Delay entre reintentos de AT (ms) */
+#define FIX_V6_AT_RETRY_DELAY_MS              500
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -230,6 +273,20 @@
  * Estado: Implementado
  */
 #define ENABLE_FEAT_V7_PRODUCTION_DIAG        1
+
+/**
+ * FEAT-V8: Testing System (Comandos seriales)
+ * Sistema: Testing/Diagnóstico
+ * Archivo: src/data_tests/TestModule.h, .cpp, config_tests.h
+ * Descripción: Sistema de tests minimalista ejecutable via monitor serial.
+ *              - 4 tests críticos: CRC16, FSM batería, contadores, parsing AT
+ *              - Ejecutable sin recompilar (comandos TEST_*)
+ *              - Zero overhead cuando flag = 0
+ * Comandos: TEST_CRC, TEST_BAT, TEST_COUNT, TEST_PARSE, TEST_HELP
+ * Dependencias: FEAT-V7 (CRC/counters), FIX-V3 (FSM batería)
+ * Estado: Implementado
+ */
+#define ENABLE_FEAT_V8_TESTING                1  // 0=deshabilitado, 1=habilitado
 
 /**
  * FEAT-V9: BLE Configuration Mode
@@ -352,6 +409,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FEAT-V7: Production Diagnostics"));
     #else
     Serial.println(F("  [ ] FEAT-V7: Production Diagnostics"));
+    #endif
+    
+    #if ENABLE_FEAT_V8_TESTING
+    Serial.println(F("  [X] FEAT-V8: Testing System (TEST_*)"));
+    #else
+    Serial.println(F("  [ ] FEAT-V8: Testing System"));
     #endif
     
     #if ENABLE_FEAT_V9_BLE_CONFIG
