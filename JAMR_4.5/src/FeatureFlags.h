@@ -132,26 +132,27 @@
 #define FIX_V3_STABLE_CYCLES_REQUIRED     3
 
 /**
- * FIX-V4: Apagado robusto de modem antes de deep sleep
+ * FIX-V4: Garantizar apagado de modem antes de deep sleep
  * Sistema: LTE / Sleep
- * Archivo: LTEModule.cpp, AppController.cpp
+ * Archivo: AppController.cpp
  * Descripción: 
- *   1. Mejora powerOff() para esperar URC "NORMAL POWER DOWN"
- *   2. Garantiza apagado ANTES de entrar a deep sleep
+ *   Llama powerOff() ANTES de entrar a deep sleep.
+ *   La lógica robusta de powerOff() está en FIX-V6.
  *   Evita estados corruptos persistentes (modem zombi).
  * Referencia: SIM7080G Hardware Design v1.05, Page 23, 27
+ * Nota: Usar JUNTO con FIX-V6 para secuencia completa.
  * Estado: Implementado
  */
 #define ENABLE_FIX_V4_MODEM_POWEROFF_SLEEP    1
 
 // ============================================================
-// FIX-V4: PARÁMETROS DE APAGADO ROBUSTO
+// FIX-V4: PARÁMETROS (legacy - ahora en FIX-V6)
 // ============================================================
 
-/** @brief Timeout para esperar URC "NORMAL POWER DOWN" (ms) */
+/** @brief Timeout para esperar URC "NORMAL POWER DOWN" (ms) - DEPRECADO, usar FIX_V6_URC_WAIT_TIMEOUT_MS */
 #define FIX_V4_URC_TIMEOUT_MS                 5000
 
-/** @brief Tiempo de espera después de PWRKEY fallback (ms) */
+/** @brief Tiempo de espera después de PWRKEY fallback (ms) - DEPRECADO, usar FIX_V6_PWRKEY_OFF_TIME_MS */
 #define FIX_V4_PWRKEY_WAIT_MS                 3000
 
 /** @brief Tiempo de espera adicional post-apagado antes de sleep (ms) */
