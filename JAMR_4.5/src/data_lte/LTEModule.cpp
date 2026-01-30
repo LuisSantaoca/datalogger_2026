@@ -225,6 +225,12 @@ bool LTEModule::powerOff() {
 #if ENABLE_FIX_V6_MODEM_POWER_SEQUENCE
     // ============ [FIX-V6 START] Apagado robusto según datasheet SIMCOM ============
     
+    // 0. Verificar si ya está apagado (evita falsos "zombie")
+    if (!isAlive()) {
+        debugPrint("[LTE] Modem ya esta apagado");
+        return true;
+    }
+    
     // 1. Vaciar buffer UART (puede tener URCs pendientes)
     while (_serial.available()) _serial.read();
     

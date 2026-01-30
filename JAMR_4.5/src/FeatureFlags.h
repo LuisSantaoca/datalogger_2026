@@ -380,6 +380,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V5: Watchdog"));
     #endif
     
+    #if ENABLE_FIX_V6_MODEM_POWER_SEQUENCE
+    Serial.println(F("  [X] FIX-V6: Modem Power Sequence (URC+PWRKEY+Reset)"));
+    #else
+    Serial.println(F("  [ ] FIX-V6: Modem Power Sequence"));
+    #endif
+    
     // FEAT Flags
     #if ENABLE_FEAT_V2_CYCLE_TIMING
     Serial.println(F("  [X] FEAT-V2: Cycle Timing"));
