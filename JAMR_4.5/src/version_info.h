@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.8.0"
-#define FW_VERSION_DATE     "2026-01-29"
-#define FW_VERSION_NAME     "modem-power-sequence"
+#define FW_VERSION_STRING   "v2.9.0"
+#define FW_VERSION_DATE     "2026-02-03"
+#define FW_VERSION_NAME     "zombie-mitigation"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,17 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.9.0  | 2026-02-03 | zombie-mitigation       | FIX-V7: Mitigación estado zombie del modem SIM7080G
+//         |            |                         | Estrategia por capas en powerOn():
+//         |            |                         | - Intentos PWRKEY (3x) con isAlive() entre cada uno
+//         |            |                         | - Deshabilitar PSM (AT+CPSMS=0) tras primera respuesta
+//         |            |                         | - Verificar PSM (AT+CPSMS?) + log si falla
+//         |            |                         | - Reset forzado 12.6s como último recurso
+//         |            |                         | - Backoff: máximo 1 ciclo completo por boot
+//         |            |                         | Limitación: NO soluciona zombies tipo B (latch-up)
+//         |            |                         | Cambios: FeatureFlags.h(L220-250), LTEModule.cpp(L182-290)
+//         |            |                         |          config_production_diag.h(L100-108)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V7_ZOMBIE_MITIGATION.md
 // v2.8.0  | 2026-01-29 | modem-power-sequence    | FIX-V6: Secuencia robusta de power on/off del modem
 //         |            |                         | Implementa especificaciones datasheet SIMCOM SIM7080G:
 //         |            |                         | - Espera URC "NORMAL POWER DOWN" en powerOff (timeout 10s)
