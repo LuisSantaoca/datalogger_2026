@@ -99,4 +99,13 @@
 /** @brief Modem zombie - no responde a reset (FIX-V6) */
 #define EVT_MODEM_ZOMBIE    'Z'
 
+/** @brief Intento de recuperación zombie (FIX-V7) */
+#define EVT_ZOMBIE_ATTEMPT  'A'
+
+/** @brief Recuperación zombie exitosa (FIX-V7) */
+#define EVT_ZOMBIE_OK       'K'
+
+/** @brief PSM no se pudo deshabilitar (FIX-V7) */
+#define EVT_PSM_FAIL        'P'
+
 #endif // CONFIG_PRODUCTION_DIAG_H

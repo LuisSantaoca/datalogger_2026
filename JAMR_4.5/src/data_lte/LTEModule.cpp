@@ -180,6 +180,115 @@ void LTEModule::begin() {
 }
 
 bool LTEModule::powerOn() {
+#if ENABLE_FIX_V7_ZOMBIE_MITIGATION
+    // ============ [FIX-V7 START] Mitigación estado zombie (v1.1) ============
+    CRASH_CHECKPOINT(CP_MODEM_POWER_ON_START);
+    debugPrint("[LTE] Encendiendo SIM7080G (FIX-V7)...");
+    
+    // Backoff: evitar loops de recuperación que gastan batería
+    static RTC_DATA_ATTR uint8_t s_recoveryAttempts = 0;
+    
+    // 0. Verificar si ya está encendido (idempotencia)
+    if (isAlive()) {
+        debugPrint("[LTE] Modem ya esta encendido");
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+        return true;
+    }
+    
+    // 1. Intentos normales de PWRKEY
+    //    isAlive() ya tiene 3 reintentos de AT internos (~4s cada llamada)
+    for (uint8_t attempt = 0; attempt < LTE_POWER_ON_ATTEMPTS; attempt++) {
+        debugPrint("[LTE] Intento PWRKEY " + String(attempt + 1) + "/" + String(LTE_POWER_ON_ATTEMPTS));
+        
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_PWRKEY);
+        togglePWRKEY();
+        delay(FIX_V6_UART_READY_DELAY_MS);  // ~2.5s según datasheet
+        
+        // isAlive() = 3 reintentos AT × 1.3s = ~4s
+        if (isAlive()) {
+            debugPrint("[LTE] Modem respondio en intento PWRKEY " + String(attempt + 1));
+            
+            #if FIX_V7_DISABLE_PSM
+            // Deshabilitar PSM para prevenir futuros "primer AT perdido"
+            debugPrint("[LTE] Deshabilitando PSM...");
+            _serial.println("AT+CPSMS=0");
+            delay(500);
+            
+            #if FIX_V7_VERIFY_PSM
+            // Verificar que PSM quedó deshabilitado
+            clearBuffer();
+            _serial.println("AT+CPSMS?");
+            delay(500);
+            String resp = "";
+            while (_serial.available()) resp += (char)_serial.read();
+            if (resp.indexOf("+CPSMS: 0") != -1) {
+                debugPrint("[LTE] PSM deshabilitado OK");
+            } else {
+                debugPrint("[LTE] WARN: PSM verify failed: " + resp);
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::logEvent(EVT_PSM_FAIL, 0);
+                #endif
+            }
+            #endif
+            #endif
+            
+            CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+            return true;
+        }
+    }
+    
+    // 2. ÚLTIMO RECURSO: Reset forzado por PWRKEY >12.6s
+    //    Solo si no hemos agotado el backoff
+    if (s_recoveryAttempts >= FIX_V7_MAX_RECOVERY_PER_BOOT) {
+        debugPrint("[LTE] WARN: Backoff activo, omitiendo reset forzado");
+        debugPrint("[LTE] ERROR: Modem no responde");
+        return false;
+    }
+    
+    debugPrint("[LTE] WARN: Intentos PWRKEY agotados, reset forzado 12.6s...");
+    s_recoveryAttempts++;
+    
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::logEvent(EVT_ZOMBIE_ATTEMPT, s_recoveryAttempts);
+    #endif
+    
+    // Reset forzado: PWRKEY LOW por >12.6s (reinicia firmware del modem)
+    // NOTA: NO corta alimentación, no resuelve latch-up
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(FIX_V6_PWRKEY_RESET_TIME_MS);  // 13000ms
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    
+    delay(FIX_V6_UART_READY_DELAY_MS);
+    
+    // Verificar recuperación
+    if (isAlive()) {
+        debugPrint("[LTE] Recuperado despues de reset forzado");
+        
+        #if FIX_V7_DISABLE_PSM
+        _serial.println("AT+CPSMS=0");
+        delay(200);
+        #endif
+        
+        #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+        ProdDiag::logEvent(EVT_ZOMBIE_OK, 0);
+        #endif
+        
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+        return true;
+    }
+    
+    // 3. Estado zombie irrecuperable (tipo B)
+    debugPrint("[LTE] ERROR: Modem zombie - requiere power cycle fisico");
+    
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::logEvent(EVT_MODEM_ZOMBIE, 0);
+    #endif
+    
+    return false;
+    // ============ [FIX-V7 END] ============
+    
+#else
+    // Código original preservado (pre FIX-V7)
     CRASH_CHECKPOINT(CP_MODEM_POWER_ON_START);  // FEAT-V3
     debugPrint("Encendiendo SIM7080G...");
     
@@ -217,6 +326,7 @@ bool LTEModule::powerOn() {
     
     debugPrint("Error: No se pudo encender el modulo");
     return false;
+#endif
 }
 
 bool LTEModule::powerOff() {

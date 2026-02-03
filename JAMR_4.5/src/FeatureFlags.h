@@ -221,6 +221,35 @@
 /** @brief Delay entre reintentos de AT (ms) */
 #define FIX_V6_AT_RETRY_DELAY_MS              500
 
+/**
+ * FIX-V7: Mitigación de estado zombie del modem SIM7080G
+ * Sistema: LTE/Modem
+ * Archivo: LTEModule.cpp
+ * Descripción: Estrategia de recuperación por capas en powerOn():
+ *   - Más intentos de PWRKEY con isAlive() entre cada uno
+ *   - Deshabilitar PSM (AT+CPSMS=0) tras primera respuesta
+ *   - Verificar PSM deshabilitado (AT+CPSMS?)
+ *   - Reset forzado (>12.6s) como último recurso
+ *   - Backoff: máximo 1 ciclo completo por boot
+ * Limitación: NO soluciona zombies tipo B (latch-up/eléctrico)
+ * Documentación: fixs-feats/fixs/FIX_V7_ZOMBIE_MITIGATION.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V7_ZOMBIE_MITIGATION       1
+
+// ============================================================
+// FIX-V7: PARÁMETROS DE MITIGACIÓN ZOMBIE
+// ============================================================
+
+/** @brief Habilitar comando AT+CPSMS=0 para deshabilitar PSM */
+#define FIX_V7_DISABLE_PSM                    1
+
+/** @brief Verificar PSM con AT+CPSMS? después de deshabilitarlo */
+#define FIX_V7_VERIFY_PSM                     1
+
+/** @brief Máximo ciclos de recuperación completos por boot (evita loops) */
+#define FIX_V7_MAX_RECOVERY_PER_BOOT          1
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -384,6 +413,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FIX-V6: Modem Power Sequence (URC+PWRKEY+Reset)"));
     #else
     Serial.println(F("  [ ] FIX-V6: Modem Power Sequence"));
+    #endif
+    
+    #if ENABLE_FIX_V7_ZOMBIE_MITIGATION
+    Serial.println(F("  [X] FIX-V7: Zombie Mitigation (PSM+Reset+Backoff)"));
+    #else
+    Serial.println(F("  [ ] FIX-V7: Zombie Mitigation"));
     #endif
     
     // FEAT Flags
