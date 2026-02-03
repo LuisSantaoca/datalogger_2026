@@ -18,6 +18,138 @@
 #endif
 // ============ [FEAT-V3 END] ============
 
+// ============ [FEAT-V7 START] Include Production Diagnostics ============
+#if ENABLE_FEAT_V7_PRODUCTION_DIAG
+#include "../data_diagnostics/ProductionDiag.h"  // FEAT-V7
+#endif
+// ============ [FEAT-V7 END] ============
+
+// ============ [DEBUG-EMI START] Estadísticas de diagnóstico EMI ============
+#if DEBUG_EMI_DIAGNOSTIC_ENABLED
+/** @brief Estructura para estadísticas de diagnóstico EMI */
+struct EMIDiagStats {
+    uint32_t totalATCommands;      // Total comandos AT enviados
+    uint32_t successfulResponses;  // Respuestas exitosas (OK)
+    uint32_t errorResponses;       // Respuestas ERROR
+    uint32_t timeouts;             // Sin respuesta (timeout)
+    uint32_t corruptedResponses;   // Respuestas con bytes inválidos
+    uint32_t invalidCharsDetected; // Total caracteres inválidos detectados
+    uint32_t totalBytesReceived;   // Total bytes recibidos
+    uint32_t maxResponseTime;      // Tiempo máximo de respuesta (ms)
+    uint32_t minResponseTime;      // Tiempo mínimo de respuesta (ms)
+    uint32_t sumResponseTime;      // Suma para calcular promedio
+};
+
+static EMIDiagStats g_emiStats = {0, 0, 0, 0, 0, 0, 0, 0, UINT32_MAX, 0};
+
+/**
+ * @brief Detecta si un byte es válido para respuesta AT
+ * @param c Byte a validar
+ * @return true si es válido (ASCII imprimible o control común)
+ */
+static bool isValidATChar(uint8_t c) {
+    // Caracteres válidos: CR, LF, espacio-tilde (0x20-0x7E)
+    return (c == 0x0D || c == 0x0A || (c >= 0x20 && c <= 0x7E));
+}
+
+/**
+ * @brief Log hex dump de respuesta AT para diagnóstico EMI
+ */
+static void logRawHex(const String& response, Stream* debugSerial) {
+    if (!debugSerial) return;
+    
+    debugSerial->print(F("[EMI-RAW] "));
+    debugSerial->print(response.length());
+    debugSerial->print(F(" bytes: "));
+    
+    uint8_t invalidCount = 0;
+    for (size_t i = 0; i < response.length() && i < 64; i++) {
+        uint8_t c = (uint8_t)response[i];
+        debugSerial->printf("%02X ", c);
+        if (!isValidATChar(c)) {
+            invalidCount++;
+        }
+    }
+    
+    if (response.length() > 64) {
+        debugSerial->print(F("..."));
+    }
+    
+    if (invalidCount > 0) {
+        debugSerial->printf(" [!%d INVALID]", invalidCount);
+        g_emiStats.invalidCharsDetected += invalidCount;
+        g_emiStats.corruptedResponses++;
+    }
+    debugSerial->println();
+}
+
+/**
+ * @brief Imprime reporte de estadísticas EMI
+ */
+void printEMIDiagnosticReport(Stream* serial) {
+    if (!serial) return;
+    
+    serial->println();
+    serial->println(F("╔════════════════════════════════════════════════════════════╗"));
+    serial->println(F("║           REPORTE DIAGNÓSTICO EMI                          ║"));
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    serial->printf(   "║  Comandos AT enviados:        %6lu                       ║\n", g_emiStats.totalATCommands);
+    serial->printf(   "║  Respuestas exitosas (OK):    %6lu (%5.1f%%)              ║\n", 
+                      g_emiStats.successfulResponses,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.successfulResponses / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    serial->printf(   "║  Respuestas ERROR:            %6lu (%5.1f%%)              ║\n",
+                      g_emiStats.errorResponses,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.errorResponses / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    serial->printf(   "║  Timeouts (sin respuesta):    %6lu (%5.1f%%)              ║\n",
+                      g_emiStats.timeouts,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.timeouts / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    serial->printf(   "║  Respuestas CORRUPTAS:        %6lu (%5.1f%%)  ", 
+                      g_emiStats.corruptedResponses,
+                      g_emiStats.totalATCommands > 0 ? (float)g_emiStats.corruptedResponses / g_emiStats.totalATCommands * 100.0f : 0.0f);
+    if (g_emiStats.corruptedResponses > 0) {
+        serial->println(F("⚠️ EMI?  ║"));
+    } else {
+        serial->println(F("✅ OK    ║"));
+    }
+    serial->printf(   "║  Caracteres inválidos total:  %6lu                       ║\n", g_emiStats.invalidCharsDetected);
+    serial->printf(   "║  Bytes recibidos total:       %6lu                       ║\n", g_emiStats.totalBytesReceived);
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    serial->printf(   "║  Tiempo respuesta MIN:        %6lu ms                    ║\n", 
+                      g_emiStats.minResponseTime == UINT32_MAX ? 0 : g_emiStats.minResponseTime);
+    serial->printf(   "║  Tiempo respuesta MAX:        %6lu ms                    ║\n", g_emiStats.maxResponseTime);
+    serial->printf(   "║  Tiempo respuesta PROMEDIO:   %6lu ms                    ║\n",
+                      g_emiStats.successfulResponses > 0 ? g_emiStats.sumResponseTime / g_emiStats.successfulResponses : 0);
+    serial->println(F("╠════════════════════════════════════════════════════════════╣"));
+    
+    // Evaluación
+    float corruptPct = g_emiStats.totalATCommands > 0 ? 
+                       (float)g_emiStats.corruptedResponses / g_emiStats.totalATCommands * 100.0f : 0.0f;
+    float timeoutPct = g_emiStats.totalATCommands > 0 ? 
+                       (float)g_emiStats.timeouts / g_emiStats.totalATCommands * 100.0f : 0.0f;
+    
+    if (corruptPct > 5.0f || timeoutPct > 10.0f) {
+        serial->println(F("║  DIAGNÓSTICO: ⚠️  PROBLEMAS DE EMI/INTEGRIDAD DETECTADOS  ║"));
+        serial->println(F("║  RECOMENDACIÓN: Revisar PCB, blindaje, desacoplo         ║"));
+    } else if (corruptPct > 0.0f || timeoutPct > 5.0f) {
+        serial->println(F("║  DIAGNÓSTICO: ⚡ Ruido menor detectado                    ║"));
+        serial->println(F("║  RECOMENDACIÓN: Monitorear en campo                      ║"));
+    } else {
+        serial->println(F("║  DIAGNÓSTICO: ✅ Comunicación limpia                      ║"));
+        serial->println(F("║  RECOMENDACIÓN: OK para producción                       ║"));
+    }
+    serial->println(F("╚════════════════════════════════════════════════════════════╝"));
+    serial->println();
+}
+
+/** @brief Reset estadísticas EMI */
+void resetEMIDiagnosticStats() {
+    memset(&g_emiStats, 0, sizeof(g_emiStats));
+    g_emiStats.minResponseTime = UINT32_MAX;
+}
+#endif
+// ============ [DEBUG-EMI END] ============
+
 LTEModule::LTEModule(HardwareSerial& serial) : _serial(serial), _debugEnabled(false), _debugSerial(nullptr) {
 }
 
@@ -48,6 +180,126 @@ void LTEModule::begin() {
 }
 
 bool LTEModule::powerOn() {
+#if ENABLE_FIX_V7_ZOMBIE_MITIGATION
+    // ============ [FIX-V7 START] Mitigación estado zombie (v1.1) ============
+    CRASH_CHECKPOINT(CP_MODEM_POWER_ON_START);
+    debugPrint("[LTE] Encendiendo SIM7080G (FIX-V7)...");
+    
+    // Backoff: evitar loops de recuperación que gastan batería
+    static RTC_DATA_ATTR uint8_t s_recoveryAttempts = 0;
+    
+    // 0. Verificar si ya está encendido (idempotencia)
+    if (isAlive()) {
+        debugPrint("[LTE] Modem ya esta encendido");
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+        return true;
+    }
+    
+    // 1. Intentos normales de PWRKEY
+    //    isAlive() ya tiene 3 reintentos de AT internos (~4s cada llamada)
+    for (uint8_t attempt = 0; attempt < LTE_POWER_ON_ATTEMPTS; attempt++) {
+        if (_debugEnabled && _debugSerial) {
+            _debugSerial->print("[LTE] Intento PWRKEY ");
+            _debugSerial->print(attempt + 1);
+            _debugSerial->print("/");
+            _debugSerial->println(LTE_POWER_ON_ATTEMPTS);
+        }
+        
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_PWRKEY);
+        togglePWRKEY();
+        delay(FIX_V6_UART_READY_DELAY_MS);  // ~2.5s según datasheet
+        
+        // isAlive() = 3 reintentos AT × 1.3s = ~4s
+        if (isAlive()) {
+            if (_debugEnabled && _debugSerial) {
+                _debugSerial->print("[LTE] Modem respondio en intento PWRKEY ");
+                _debugSerial->println(attempt + 1);
+            }
+            
+            #if FIX_V7_DISABLE_PSM
+            // Deshabilitar PSM para prevenir futuros "primer AT perdido"
+            debugPrint("[LTE] Deshabilitando PSM...");
+            _serial.println("AT+CPSMS=0");
+            delay(500);
+            
+            #if FIX_V7_VERIFY_PSM
+            // Verificar que PSM quedó deshabilitado
+            clearBuffer();
+            _serial.println("AT+CPSMS?");
+            delay(500);
+            String resp = "";
+            while (_serial.available()) resp += (char)_serial.read();
+            if (resp.indexOf("+CPSMS: 0") != -1) {
+                debugPrint("[LTE] PSM deshabilitado OK");
+            } else {
+                if (_debugEnabled && _debugSerial) {
+                    _debugSerial->print("[LTE] WARN: PSM verify failed: ");
+                    _debugSerial->println(resp);
+                }
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::logEvent(EVT_PSM_FAIL, 0);
+                #endif
+            }
+            #endif
+            #endif
+            
+            CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+            return true;
+        }
+    }
+    
+    // 2. ÚLTIMO RECURSO: Reset forzado por PWRKEY >12.6s
+    //    Solo si no hemos agotado el backoff
+    if (s_recoveryAttempts >= FIX_V7_MAX_RECOVERY_PER_BOOT) {
+        debugPrint("[LTE] WARN: Backoff activo, omitiendo reset forzado");
+        debugPrint("[LTE] ERROR: Modem no responde");
+        return false;
+    }
+    
+    debugPrint("[LTE] WARN: Intentos PWRKEY agotados, reset forzado 12.6s...");
+    s_recoveryAttempts++;
+    
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::logEvent(EVT_ZOMBIE_ATTEMPT, s_recoveryAttempts);
+    #endif
+    
+    // Reset forzado: PWRKEY LOW por >12.6s (reinicia firmware del modem)
+    // NOTA: NO corta alimentación, no resuelve latch-up
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(FIX_V6_PWRKEY_RESET_TIME_MS);  // 13000ms
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    
+    delay(FIX_V6_UART_READY_DELAY_MS);
+    
+    // Verificar recuperación
+    if (isAlive()) {
+        debugPrint("[LTE] Recuperado despues de reset forzado");
+        
+        #if FIX_V7_DISABLE_PSM
+        _serial.println("AT+CPSMS=0");
+        delay(200);
+        #endif
+        
+        #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+        ProdDiag::logEvent(EVT_ZOMBIE_OK, 0);
+        #endif
+        
+        CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+        return true;
+    }
+    
+    // 3. Estado zombie irrecuperable (tipo B)
+    debugPrint("[LTE] ERROR: Modem zombie - requiere power cycle fisico");
+    
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::logEvent(EVT_MODEM_ZOMBIE, 0);
+    #endif
+    
+    return false;
+    // ============ [FIX-V7 END] ============
+    
+#else
+    // Código original preservado (pre FIX-V7)
     CRASH_CHECKPOINT(CP_MODEM_POWER_ON_START);  // FEAT-V3
     debugPrint("Encendiendo SIM7080G...");
     
@@ -85,11 +337,77 @@ bool LTEModule::powerOn() {
     
     debugPrint("Error: No se pudo encender el modulo");
     return false;
+#endif
 }
 
 bool LTEModule::powerOff() {
     debugPrint("Apagando SIM7080G...");
     
+#if ENABLE_FIX_V6_MODEM_POWER_SEQUENCE
+    // ============ [FIX-V6 START] Apagado robusto según datasheet SIMCOM ============
+    
+    // 0. Verificar si ya está apagado (evita falsos "zombie")
+    //    NOTA: Si el modem está en estado zombie, isAlive() retorna false
+    //    pero el modem sigue alimentado (LED parpadea). No podemos distinguir.
+    if (!isAlive()) {
+        debugPrint("[LTE] Modem no responde - asumiendo apagado o zombie");
+        debugPrint("[LTE] WARN: Si LED sigue parpadeando, es zombie tipo B (requiere power cycle)");
+        return true;
+    }
+    
+    // 1. Vaciar buffer UART (puede tener URCs pendientes)
+    while (_serial.available()) _serial.read();
+    
+    // 2. Intentar apagado graceful con AT+CPOWD=1
+    debugPrint("[LTE] Enviando AT+CPOWD=1");
+    _serial.println(LTE_POWER_OFF_COMMAND);
+    
+    // 3. CRÍTICO: Esperar URC "NORMAL POWER DOWN" (datasheet: ~1.8s típico)
+    unsigned long start = millis();
+    while (millis() - start < FIX_V6_URC_WAIT_TIMEOUT_MS) {
+        if (_serial.available()) {
+            String response = _serial.readStringUntil('\n');
+            response.trim();  // Limpiar \r\n y espacios
+            if (response.indexOf("NORMAL POWER DOWN") != -1) {
+                debugPrint("[LTE] URC recibido - apagado confirmado");
+                delay(500);
+                return true;
+            }
+        }
+        delay(100);
+    }
+    
+    // 4. Si no recibió URC, intentar PWRKEY extendido
+    debugPrint("[LTE] WARN: URC no recibido, intentando PWRKEY");
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(FIX_V6_PWRKEY_OFF_TIME_MS);
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    delay(FIX_V6_TOFF_TON_BUFFER_MS);  // Esperar settling
+    
+    if (!isAlive()) {
+        debugPrint("[LTE] Apagado por PWRKEY exitoso");
+        return true;
+    }
+    
+    // 5. ÚLTIMO RECURSO: Reset forzado (>12.6s según datasheet)
+    debugPrint("[LTE] WARN: Forzando reset por PWRKEY >12.6s");
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(FIX_V6_PWRKEY_RESET_TIME_MS);
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    delay(FIX_V6_TOFF_TON_BUFFER_MS);
+    
+    bool success = !isAlive();
+    if (!success) {
+        debugPrint("[LTE] ERROR: Modem no responde a reset - posible zombie");
+        #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+        ProdDiag::logEvent(EVT_MODEM_ZOMBIE, 0);  // FIX-V6: Registrar evento zombie
+        #endif
+    }
+    return success;
+    
+    // ============ [FIX-V6 END] ============
+#else
+    // Código original preservado
     if (!isAlive()) {
         debugPrint("Modulo ya esta apagado");
         return true;
@@ -114,6 +432,7 @@ bool LTEModule::powerOff() {
     
     debugPrint("Error: No se pudo apagar el modulo");
     return false;
+#endif
 }
 
 bool LTEModule::isAlive() {
@@ -132,6 +451,14 @@ bool LTEModule::isAlive() {
 bool LTEModule::sendATCommand(const char* cmd, uint32_t timeout) {
     clearBuffer();
     _serial.println(cmd);
+    
+    #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+    g_emiStats.totalATCommands++;
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->printf("[EMI-CMD] %s\n", cmd);
+    }
+    #endif
+    
     return waitForOK(timeout);
 }
 
@@ -154,16 +481,67 @@ bool LTEModule::waitForOK(uint32_t timeout) {
             char c = _serial.read();
             response += c;
             
+            #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+            g_emiStats.totalBytesReceived++;
+            #endif
+            
             if (response.indexOf("OK") != -1) {
+                #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+                uint32_t respTime = millis() - startTime;
+                g_emiStats.successfulResponses++;
+                g_emiStats.sumResponseTime += respTime;
+                if (respTime < g_emiStats.minResponseTime) g_emiStats.minResponseTime = respTime;
+                if (respTime > g_emiStats.maxResponseTime) g_emiStats.maxResponseTime = respTime;
+                
+                #if DEBUG_EMI_LOG_RAW_HEX
+                logRawHex(response, _debugSerial);
+                #endif
+                #endif
+                
+                // ============ [FEAT-V7 START] Contar EMI para diagnóstico producción ============
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::countEMI(response);
+                #endif
+                // ============ [FEAT-V7 END] ============
+                
                 return true;
             }
             
             if (response.indexOf("ERROR") != -1) {
+                #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+                g_emiStats.errorResponses++;
+                #if DEBUG_EMI_LOG_RAW_HEX
+                logRawHex(response, _debugSerial);
+                #endif
+                #endif
+                
+                // ============ [FEAT-V7 START] Contar EMI para diagnóstico producción ============
+                #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+                ProdDiag::countEMI(response);
+                #endif
+                // ============ [FEAT-V7 END] ============
+                
                 return false;
             }
         }
         delay(10);
     }
+    
+    #if DEBUG_EMI_DIAGNOSTIC_ENABLED
+    g_emiStats.timeouts++;
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->printf("[EMI-TIMEOUT] No response in %lu ms\n", timeout);
+        if (response.length() > 0) {
+            logRawHex(response, _debugSerial);
+        }
+    }
+    #endif
+    
+    // ============ [FEAT-V7 START] Registrar timeout AT ============
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::recordATTimeout();
+    #endif
+    // ============ [FEAT-V7 END] ============
     
     return false;
 }

@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.5.0"
-#define FW_VERSION_DATE     "2026-01-28"
-#define FW_VERSION_NAME     "periodic-restart"
+#define FW_VERSION_STRING   "v2.9.0"
+#define FW_VERSION_DATE     "2026-02-03"
+#define FW_VERSION_NAME     "zombie-mitigation"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,49 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.9.0  | 2026-02-03 | zombie-mitigation       | FIX-V7: Mitigación estado zombie del modem SIM7080G
+//         |            |                         | Estrategia por capas en powerOn():
+//         |            |                         | - Intentos PWRKEY (3x) con isAlive() entre cada uno
+//         |            |                         | - Deshabilitar PSM (AT+CPSMS=0) tras primera respuesta
+//         |            |                         | - Verificar PSM (AT+CPSMS?) + log si falla
+//         |            |                         | - Reset forzado 12.6s como último recurso
+//         |            |                         | - Backoff: máximo 1 ciclo completo por boot
+//         |            |                         | Limitación: NO soluciona zombies tipo B (latch-up)
+//         |            |                         | Cambios: FeatureFlags.h(L220-250), LTEModule.cpp(L182-290)
+//         |            |                         |          config_production_diag.h(L100-108)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V7_ZOMBIE_MITIGATION.md
+// v2.8.0  | 2026-01-29 | modem-power-sequence    | FIX-V6: Secuencia robusta de power on/off del modem
+//         |            |                         | Implementa especificaciones datasheet SIMCOM SIM7080G:
+//         |            |                         | - Espera URC "NORMAL POWER DOWN" en powerOff (timeout 10s)
+//         |            |                         | - PWRKEY extendido 1.5s (>1s encender, >1.2s apagar)
+//         |            |                         | - Reset forzado >12.6s como último recurso
+//         |            |                         | - Manejo PSM: AT+CPSMS=0 después de wake
+//         |            |                         | - Buffer flush antes de AT commands
+//         |            |                         | - Múltiples reintentos AT post-wake (primer cmd perdido)
+//         |            |                         | Resuelve: modem zombie en dispositivos 6948, 6963
+//         |            |                         | Cambios: FeatureFlags.h(L145-185), LTEModule.cpp(L185-310)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V6_MODEM_POWER_SEQUENCE.md
+//         |            |                         |       calidad/INVESTIGACION_MODEM_ZOMBIE.md
+// v2.7.1  | 2026-01-29 | serial-diag-commands    | FEAT-V9: Comandos Serial STATS y LOG para diagnóstico
+//         |            |                         | Conecta ProdDiag::printStats() y printEventLog() al Serial
+//         |            |                         | Scope V3/V7 independiente, setTimeout(50ms) anti-bloqueo
+//         |            |                         | Comandos: STATS, LOG (adicionales a DIAG, HISTORY, CLEAR)
+//         |            |                         | Bugfix: DEEPSLEEP (cases 5,8) en setResetReason()
+//         |            |                         | Bugfix: epoch=0 → añadido setCurrentEpoch() en Cycle_BuildFrame
+//         |            |                         | Cambios: AppController.cpp(L1165-1198,L1397-1403)
+//         |            |                         |          ProductionDiag.cpp(L262-268,L524-528), ProductionDiag.h(L243-251)
+// v2.7.0  | 2026-01-28 | minimal-testing         | FEAT-V8: Sistema de tests minimalista via serial
+//         |            |                         | 4 tests críticos: CRC16, FSM batería, contadores, parsing AT
+//         |            |                         | Comandos: TEST_CRC, TEST_BAT, TEST_COUNT, TEST_PARSE, TEST_HELP
+//         |            |                         | Zero overhead cuando flag = 0
+//         |            |                         | Cambios: TestModule.h/cpp(nuevo), config_tests.h(nuevo)
+//         |            |                         | FeatureFlags.h(L233-247,L362-366), AppController.cpp(L47-50,L1176-1179)
+// v2.6.0  | 2026-01-28 | production-diagnostics | FEAT-V7: Diagnóstico de producción persistente
+//         |            |                        | Contadores: ciclos, LTE OK/FAIL, EMI, crashes, batería baja
+//         |            |                        | Log de eventos circular, comandos Serial: STATS, LOG, CLEAR
+//         |            |                        | Cambios: ProductionDiag.h/cpp(nuevo), config_production_diag.h(nuevo)
+//         |            |                        | AppController.cpp(L42-44,L460,L493,L517,L782,L892,L903,L959,L1061-1064,L1472-1476,L1575)
+//         |            |                        | LTEModule.cpp(L21-23,L315,L332,L354), FeatureFlags.h(L203-215,L323-327)
 // v2.5.0  | 2026-01-28 | periodic-restart    | FEAT-V4: Reinicio periódico preventivo cada 24h
 //         |            |                     | Acumula µs reales de sleep, restart en punto seguro
 //         |            |                     | Cambios: FeatureFlags.h(L145-175), AppController.cpp(L69-82,L903-937,L1276-1316)
@@ -63,8 +106,8 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    4
-#define FW_VERSION_PATCH    0
+#define FW_VERSION_MINOR    7
+#define FW_VERSION_PATCH    1
 
 /*******************************************************************************
  * FUNCIÓN DE IMPRESIÓN
