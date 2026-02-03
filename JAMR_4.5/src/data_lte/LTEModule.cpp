@@ -198,7 +198,12 @@ bool LTEModule::powerOn() {
     // 1. Intentos normales de PWRKEY
     //    isAlive() ya tiene 3 reintentos de AT internos (~4s cada llamada)
     for (uint8_t attempt = 0; attempt < LTE_POWER_ON_ATTEMPTS; attempt++) {
-        debugPrint("[LTE] Intento PWRKEY " + String(attempt + 1) + "/" + String(LTE_POWER_ON_ATTEMPTS));
+        if (_debugEnabled && _debugSerial) {
+            _debugSerial->print("[LTE] Intento PWRKEY ");
+            _debugSerial->print(attempt + 1);
+            _debugSerial->print("/");
+            _debugSerial->println(LTE_POWER_ON_ATTEMPTS);
+        }
         
         CRASH_CHECKPOINT(CP_MODEM_POWER_ON_PWRKEY);
         togglePWRKEY();
@@ -206,7 +211,10 @@ bool LTEModule::powerOn() {
         
         // isAlive() = 3 reintentos AT × 1.3s = ~4s
         if (isAlive()) {
-            debugPrint("[LTE] Modem respondio en intento PWRKEY " + String(attempt + 1));
+            if (_debugEnabled && _debugSerial) {
+                _debugSerial->print("[LTE] Modem respondio en intento PWRKEY ");
+                _debugSerial->println(attempt + 1);
+            }
             
             #if FIX_V7_DISABLE_PSM
             // Deshabilitar PSM para prevenir futuros "primer AT perdido"
@@ -224,7 +232,10 @@ bool LTEModule::powerOn() {
             if (resp.indexOf("+CPSMS: 0") != -1) {
                 debugPrint("[LTE] PSM deshabilitado OK");
             } else {
-                debugPrint("[LTE] WARN: PSM verify failed: " + resp);
+                if (_debugEnabled && _debugSerial) {
+                    _debugSerial->print("[LTE] WARN: PSM verify failed: ");
+                    _debugSerial->println(resp);
+                }
                 #if ENABLE_FEAT_V7_PRODUCTION_DIAG
                 ProdDiag::logEvent(EVT_PSM_FAIL, 0);
                 #endif
@@ -336,8 +347,11 @@ bool LTEModule::powerOff() {
     // ============ [FIX-V6 START] Apagado robusto según datasheet SIMCOM ============
     
     // 0. Verificar si ya está apagado (evita falsos "zombie")
+    //    NOTA: Si el modem está en estado zombie, isAlive() retorna false
+    //    pero el modem sigue alimentado (LED parpadea). No podemos distinguir.
     if (!isAlive()) {
-        debugPrint("[LTE] Modem ya esta apagado");
+        debugPrint("[LTE] Modem no responde - asumiendo apagado o zombie");
+        debugPrint("[LTE] WARN: Si LED sigue parpadeando, es zombie tipo B (requiere power cycle)");
         return true;
     }
     
