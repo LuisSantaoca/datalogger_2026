@@ -288,12 +288,46 @@ bool LTEModule::powerOn() {
         return true;
     }
     
-    // 3. Estado zombie irrecuperable (tipo B)
-    debugPrint("[LTE] ERROR: Modem zombie - requiere power cycle fisico");
+    // 3. Estado zombie irrecuperable (tipo B) - FIX-V7 no puede resolver
+#if ENABLE_FIX_V9_HARD_POWER_CYCLE
+    // ============ [FIX-V9 START] Hard power cycle como último recurso ============
+    debugPrint("[LTE] FIX-V9: Intentando HARD POWER CYCLE via IO13...");
     
+    if (hardPowerCycle()) {
+        // Después del hard cycle, ejecutar secuencia PWRKEY completa
+        debugPrint("[LTE] FIX-V9: VBAT restaurado, ejecutando PWRKEY...");
+        togglePWRKEY();
+        delay(FIX_V6_UART_READY_DELAY_MS);
+        
+        if (isAlive()) {
+            debugPrint("[LTE] SUCCESS: Modem recuperado con HARD POWER CYCLE!");
+            
+            #if FIX_V7_DISABLE_PSM
+            _serial.println("AT+CPSMS=0");
+            delay(200);
+            #endif
+            
+            #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+            ProdDiag::logEvent(EVT_HARD_CYCLE_OK, 0);
+            #endif
+            
+            CRASH_CHECKPOINT(CP_MODEM_POWER_ON_OK);
+            return true;
+        }
+    }
+    
+    debugPrint("[LTE] ERROR: Modem no responde ni con HARD POWER CYCLE");
     #if ENABLE_FEAT_V7_PRODUCTION_DIAG
     ProdDiag::logEvent(EVT_MODEM_ZOMBIE, 0);
     #endif
+    // ============ [FIX-V9 END] ============
+#else
+    // FIX-V9 deshabilitado: comportamiento original FIX-V7
+    debugPrint("[LTE] ERROR: Modem zombie - requiere power cycle fisico");
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::logEvent(EVT_MODEM_ZOMBIE, 0);
+    #endif
+#endif
     
     return false;
     // ============ [FIX-V7 END] ============
@@ -339,6 +373,70 @@ bool LTEModule::powerOn() {
     return false;
 #endif
 }
+
+// ============ [FIX-V9 START] Hard power cycle via IO13 ============
+#if ENABLE_FIX_V9_HARD_POWER_CYCLE
+
+/**
+ * @brief Contador de hard cycles para protección anti-loop
+ * @note RTC_DATA_ATTR persiste en deep sleep
+ */
+RTC_DATA_ATTR static uint8_t s_hardCycleCount = 0;
+
+bool LTEModule::hardPowerCycle() {
+    // Protección anti-loop: limitar ciclos por boot
+    if (s_hardCycleCount >= FIX_V9_MAX_HARD_CYCLES_PER_BOOT) {
+        debugPrint("[LTE] HARD-CYCLE: Limite alcanzado, omitiendo");
+        return false;
+    }
+    s_hardCycleCount++;
+    
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->print(F("[LTE] HARD-CYCLE: Iniciando ("));
+        _debugSerial->print(s_hardCycleCount);
+        _debugSerial->print(F("/"));
+        _debugSerial->print(FIX_V9_MAX_HARD_CYCLES_PER_BOOT);
+        _debugSerial->println(F(")"));
+    }
+    
+    // Configurar pin como salida
+    pinMode(MODEM_EN_PIN, OUTPUT);
+    
+    // PASO 1: Cortar alimentación VBAT
+    debugPrint("[LTE] HARD-CYCLE: IO13=LOW, cortando VBAT...");
+    digitalWrite(MODEM_EN_PIN, LOW);
+    
+    // PASO 2: Esperar descarga completa de capacitores
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->print(F("[LTE] HARD-CYCLE: Esperando "));
+        _debugSerial->print(FIX_V9_POWEROFF_DELAY_MS);
+        _debugSerial->println(F("ms para descarga..."));
+    }
+    delay(FIX_V9_POWEROFF_DELAY_MS);
+    
+    // PASO 3: Restaurar alimentación VBAT
+    debugPrint("[LTE] HARD-CYCLE: IO13=HIGH, restaurando VBAT...");
+    digitalWrite(MODEM_EN_PIN, HIGH);
+    
+    // PASO 4: Esperar estabilización del boost converter
+    if (_debugEnabled && _debugSerial) {
+        _debugSerial->print(F("[LTE] HARD-CYCLE: Esperando "));
+        _debugSerial->print(FIX_V9_STABILIZATION_MS);
+        _debugSerial->println(F("ms para estabilizacion..."));
+    }
+    delay(FIX_V9_STABILIZATION_MS);
+    
+    debugPrint("[LTE] HARD-CYCLE: Ciclo completado, listo para PWRKEY");
+    
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    ProdDiag::logEvent(EVT_HARD_CYCLE, s_hardCycleCount);
+    #endif
+    
+    return true;
+}
+
+#endif // ENABLE_FIX_V9_HARD_POWER_CYCLE
+// ============ [FIX-V9 END] ============
 
 bool LTEModule::powerOff() {
     debugPrint("Apagando SIM7080G...");

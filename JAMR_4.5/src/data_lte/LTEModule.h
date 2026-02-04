@@ -250,6 +250,19 @@ public:
      */
     bool sendTCPData(const uint8_t* data, size_t length);
 
+    // ============ [FIX-V9 START] Hard power cycle declaration ============
+#if ENABLE_FIX_V9_HARD_POWER_CYCLE
+    /**
+     * @brief Ejecuta un power cycle REAL del modem cortando VBAT
+     * @details Controla MIC2288 EN vía IO13 para colapsar VBAT a ~0V.
+     *          Esta es la solución definitiva para zombies tipo B.
+     * @return true si el ciclo se ejecutó (siempre retorna true)
+     * @note Secuencia: IO13 LOW (5s) → IO13 HIGH → esperar estabilización
+     */
+    bool hardPowerCycle();
+#endif
+    // ============ [FIX-V9 END] ============
+
 private:
     HardwareSerial& _serial;
     bool _debugEnabled;

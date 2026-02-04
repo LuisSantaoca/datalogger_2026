@@ -22,6 +22,17 @@ static const uint8_t LTE_PIN_RX = 11;
 /** @brief Module PWRKEY control pin. */
 static const uint8_t LTE_PWRKEY_PIN = 9;
 
+// ============ [FIX-V9 START] Pin de control MIC2288 ============
+/**
+ * @brief GPIO que controla EN del MIC2288 vía divisor R23/R24
+ * @details IO13 → R23 (10k) → junction → R24 (10k) → GND
+ *          junction → MIC2288 EN (pin 4)
+ *          Ven = 3.3V × (10k/20k) = 1.65V > umbral 1.2V
+ * @note Usado por FIX-V9 para hard power cycle del modem
+ */
+static const uint8_t MODEM_EN_PIN = 13;
+// ============ [FIX-V9 END] ============
+
 /** @brief UART baud rate for AT commands. */
 static const uint32_t LTE_SIM_BAUD = 115200UL;
 

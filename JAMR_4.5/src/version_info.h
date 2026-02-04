@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.9.0"
-#define FW_VERSION_DATE     "2026-02-03"
-#define FW_VERSION_NAME     "zombie-mitigation"
+#define FW_VERSION_STRING   "v2.10.0"
+#define FW_VERSION_DATE     "2026-02-05"
+#define FW_VERSION_NAME     "hard-power-cycle"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,17 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.10.0 | 2026-02-05 | hard-power-cycle        | FIX-V9: Hard power cycle del modem vía IO13
+//         |            |                         | Solución DEFINITIVA al estado zombie tipo B:
+//         |            |                         | - IO13 controla MIC2288 EN vía divisor R23/R24
+//         |            |                         | - IO13 LOW → VBAT colapsa a ~0V (descarga caps)
+//         |            |                         | - IO13 HIGH → VBAT = 3.8V (boost restaurado)
+//         |            |                         | - Secuencia: 5s OFF + 1s estabilización + PWRKEY
+//         |            |                         | - Protección anti-loop: máx 2 ciclos por boot
+//         |            |                         | Cambios: FeatureFlags.h(L265-295), LTEModule.cpp(L343-400,L291-330)
+//         |            |                         |          LTEModule.h(L253-262), config_data_lte.h(L27-36)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V9_HARD_POWER_CYCLE.md
+//         |            |                         |       REPORTE_TECNICO_MODEM_ZOMBIE_2026-01-31.md (Sec 9.7)
 // v2.9.0  | 2026-02-03 | zombie-mitigation       | FIX-V7: Mitigación estado zombie del modem SIM7080G
 //         |            |                         | Estrategia por capas en powerOn():
 //         |            |                         | - Intentos PWRKEY (3x) con isAlive() entre cada uno

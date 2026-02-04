@@ -263,6 +263,37 @@
  */
 #define ENABLE_FIX_V8_ICCID_FAIL_LOGGING      1
 
+/**
+ * FIX-V9: Hard Power Cycle del Modem vía IO13
+ * Sistema: LTE/Power
+ * Archivo: LTEModule.cpp
+ * Descripción: Control REAL de alimentación VBAT del modem:
+ *   - IO13 LOW → MIC2288 EN = 0V → VBAT colapsa a ~0V
+ *   - IO13 HIGH → MIC2288 EN = 1.65V → VBAT = 3.8V
+ *   - Solución definitiva a zombies tipo B (latch-up eléctrico)
+ * Circuito: IO13 → R23 (10k) → junction → R24 (10k) → GND
+ *           junction → MIC2288 EN (pin 4)
+ * Documentación: fixs-feats/fixs/FIX_V9_HARD_POWER_CYCLE.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V9_HARD_POWER_CYCLE        1
+
+// ============================================================
+// FIX-V9: PARÁMETROS DE HARD POWER CYCLE
+// ============================================================
+
+/** @brief Tiempo con VBAT cortado para descarga completa de caps (ms) */
+#define FIX_V9_POWEROFF_DELAY_MS              5000
+
+/** @brief Tiempo de estabilización después de restaurar VBAT (ms) */
+#define FIX_V9_STABILIZATION_MS               1000
+
+/** @brief Reintentos PWRKEY antes de ejecutar hard power cycle */
+#define FIX_V9_PWRKEY_ATTEMPTS_BEFORE_HARD    2
+
+/** @brief Máximo hard cycles permitidos por boot (protección anti-loop) */
+#define FIX_V9_MAX_HARD_CYCLES_PER_BOOT       2
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
