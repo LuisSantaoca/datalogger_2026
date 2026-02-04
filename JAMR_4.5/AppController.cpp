@@ -1070,6 +1070,29 @@ void AppInit(const AppConfig& cfg) {
   #endif
   // ============ [FEAT-V7 END] ============
 
+  // ============ [FIX-V9 START] Imprimir info adicional de boot ============
+  {
+    esp_reset_reason_t rst = esp_reset_reason();
+    Serial.print(F("[INFO] Reset reason: "));
+    switch(rst) {
+      case ESP_RST_POWERON:  Serial.println(F("POWERON")); break;
+      case ESP_RST_SW:       Serial.println(F("SOFTWARE")); break;
+      case ESP_RST_PANIC:    Serial.println(F("PANIC/CRASH")); break;
+      case ESP_RST_INT_WDT:  Serial.println(F("INT_WATCHDOG")); break;
+      case ESP_RST_TASK_WDT: Serial.println(F("TASK_WATCHDOG")); break;
+      case ESP_RST_WDT:      Serial.println(F("WATCHDOG")); break;
+      case ESP_RST_DEEPSLEEP: Serial.println(F("DEEPSLEEP")); break;
+      case ESP_RST_BROWNOUT: Serial.println(F("BROWNOUT")); break;
+      default:               Serial.printf("UNKNOWN(%d)\n", (int)rst); break;
+    }
+    #if ENABLE_FEAT_V7_PRODUCTION_DIAG
+    const ProdDiagStats& st = ProdDiag::getStats();
+    Serial.printf("[INFO] Ciclos: %lu total, %lu desde boot\n", st.totalCycles, st.cyclesSinceBoot);
+    #endif
+  }
+  Serial.println(F("====================="));
+  // ============ [FIX-V9 END] ============
+
   (void)adcSensor.begin();
   (void)i2cSensor.begin();
   (void)rs485Sensor.begin();

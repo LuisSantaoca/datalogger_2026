@@ -108,4 +108,12 @@
 /** @brief PSM no se pudo deshabilitar (FIX-V7) */
 #define EVT_PSM_FAIL        'P'
 
+// ============ [FIX-V9 START] Eventos hard power cycle ============
+/** @brief Hard power cycle ejecutado via IO13 (FIX-V9) */
+#define EVT_HARD_CYCLE      'H'
+
+/** @brief Hard power cycle exitoso - modem recuperado (FIX-V9) */
+#define EVT_HARD_CYCLE_OK   'W'  // W = Wake from hard cycle
+// ============ [FIX-V9 END] ============
+
 #endif // CONFIG_PRODUCTION_DIAG_H

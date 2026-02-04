@@ -465,6 +465,22 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V7: Zombie Mitigation"));
     #endif
     
+    // ============ [FIX-V8 START] Log flag ============
+    #if ENABLE_FIX_V8_ICCID_FAIL_LOGGING
+    Serial.println(F("  [X] FIX-V8: ICCID Fail Logging"));
+    #else
+    Serial.println(F("  [ ] FIX-V8: ICCID Fail Logging"));
+    #endif
+    // ============ [FIX-V8 END] ============
+    
+    // ============ [FIX-V9 START] Log flag ============
+    #if ENABLE_FIX_V9_HARD_POWER_CYCLE
+    Serial.println(F("  [X] FIX-V9: Hard Power Cycle (IO13->MIC2288)"));
+    #else
+    Serial.println(F("  [ ] FIX-V9: Hard Power Cycle"));
+    #endif
+    // ============ [FIX-V9 END] ============
+    
     // FEAT Flags
     #if ENABLE_FEAT_V2_CYCLE_TIMING
     Serial.println(F("  [X] FEAT-V2: Cycle Timing"));
