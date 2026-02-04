@@ -1381,9 +1381,23 @@ void AppLoop() {
       #else
       if (lte.powerOn()) {
         g_iccid = lte.getICCID();
+        // ============ [FIX-V8 START] Logging fallo ICCID ============
+        #if ENABLE_FIX_V8_ICCID_FAIL_LOGGING && ENABLE_FEAT_V7_PRODUCTION_DIAG
+        if (g_iccid.length() == 0) {
+          Serial.println(F("[WARN][APP] ICCID vacío - fallo AT (timeout o SIM)"));
+          ProdDiag::recordATTimeout();
+        }
+        #endif
+        // ============ [FIX-V8 END] ============
         lte.powerOff();
       } else {
         g_iccid = "";
+        // ============ [FIX-V8 START] Logging fallo powerOn ============
+        #if ENABLE_FIX_V8_ICCID_FAIL_LOGGING && ENABLE_FEAT_V7_PRODUCTION_DIAG
+        Serial.println(F("[WARN][APP] powerOn falló - fallo AT durante ICCID"));
+        ProdDiag::recordATTimeout();
+        #endif
+        // ============ [FIX-V8 END] ============
       }
       #endif
       

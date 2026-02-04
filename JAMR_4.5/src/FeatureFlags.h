@@ -250,6 +250,19 @@
 /** @brief Máximo ciclos de recuperación completos por boot (evita loops) */
 #define FIX_V7_MAX_RECOVERY_PER_BOOT          1
 
+/**
+ * FIX-V8: Logging de fallos ICCID
+ * Sistema: Diagnóstico/ProductionDiag
+ * Archivo: AppController.cpp
+ * Descripción: Registra evento AT_TIMEOUT cuando:
+ *   - powerOn() falla (módem no responde)
+ *   - getICCID() retorna vacío (timeout o SIM no detectada)
+ * Beneficio: Visibilidad de fallos ICCID via comando LOG
+ * Documentación: fixs-feats/fixs/FIX_V8_ICCID_FAIL_LOGGING.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V8_ICCID_FAIL_LOGGING      1
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================

@@ -73,6 +73,9 @@ void ProdDiag::recordLTESendFail() {
 void ProdDiag::recordATTimeout() {
     if (!g_initialized) return;
     g_stats.atTimeouts++;
+    // ============ [FIX-V8 START] Registrar evento en LOG ============
+    logEvent(EVT_AT_TIMEOUT, g_stats.atTimeouts);
+    // ============ [FIX-V8 END] ============
 }
 
 void ProdDiag::recordOperatorFallback() {
