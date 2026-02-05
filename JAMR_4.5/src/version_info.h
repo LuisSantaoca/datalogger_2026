@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.10.0"
+#define FW_VERSION_STRING   "v2.10.1"
 #define FW_VERSION_DATE     "2026-02-05"
-#define FW_VERSION_NAME     "hard-power-cycle"
+#define FW_VERSION_NAME     "revert-fix-v9"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,14 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.10.1 | 2026-02-05 | revert-fix-v9           | REVERSIÓN FIX-V9: Deshabilitado por validación hardware
+//         |            |                         | Razón: Test demostró GPIO 13 NO controla MIC2288 EN en PCB real
+//         |            |                         | Evidencia: Modem responde ATOK con IO13=LOW (34.509s en test_modem.ino TEST 3)
+//         |            |                         | Schematic.json: NO existe conexión GPIO 13 → MIC2288 pin 4 (EN)
+//         |            |                         | Comportamiento restaurado: FIX-V7 LITE mode con softReset
+//         |            |                         | Cambios: FeatureFlags.h(L282) - ENABLE_FIX_V9_HARD_POWER_CYCLE = 0
+//         |            |                         | Docs: datalogger-review/HALLAZGO_CRITICO_GPIO13_2026-02-05.md
+//
 // v2.10.0 | 2026-02-05 | hard-power-cycle        | FIX-V9: Hard power cycle del modem vía IO13
 //         |            |                         | Solución DEFINITIVA al estado zombie tipo B:
 //         |            |                         | - IO13 controla MIC2288 EN vía divisor R23/R24

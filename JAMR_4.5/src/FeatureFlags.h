@@ -274,9 +274,10 @@
  * Circuito: IO13 → R23 (10k) → junction → R24 (10k) → GND
  *           junction → MIC2288 EN (pin 4)
  * Documentación: fixs-feats/fixs/FIX_V9_HARD_POWER_CYCLE.md
- * Estado: Implementado
+ * Estado: DESHABILITADO - Test demostró GPIO 13 no controla MIC2288 EN en hardware real
+ * Nota: Ver datalogger-review/HALLAZGO_CRITICO_GPIO13_2026-02-05.md
  */
-#define ENABLE_FIX_V9_HARD_POWER_CYCLE        1
+#define ENABLE_FIX_V9_HARD_POWER_CYCLE        0   // DESHABILITADO - hardware no soporta
 
 // ============================================================
 // FIX-V9: PARÁMETROS DE HARD POWER CYCLE
