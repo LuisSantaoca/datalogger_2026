@@ -46,7 +46,23 @@ bool GPSModule::powerOff() {
   (void)gnssPowerOff();
   flushInput();
   (void)sendCommand(GPS_POWER_OFF_COMMAND);
-  DEBUG_INFO(GPS, "Comando de apagado enviado");
+  DEBUG_INFO(GPS, "Comando de apagado enviado, esperando confirmacion...");
+
+  // Esperar URC "NORMAL POWER DOWN" (datasheet: Toff-on min 2s)
+  char line[64];
+  uint32_t start = millis();
+  while (millis() - start < 5000) {
+    if (readLine(line, sizeof(line), 500)) {
+      if (strstr(line, "NORMAL POWER DOWN") != nullptr) {
+        DEBUG_INFO(GPS, "Apagado confirmado (NORMAL POWER DOWN)");
+        return true;
+      }
+    }
+  }
+
+  // Fallback: si no llego URC, esperar 3s para cumplir Toff-on >= 2s
+  DEBUG_WARN(GPS, "No se recibio URC, esperando fallback 3s");
+  delay(3000);
   return true;
 }
 
