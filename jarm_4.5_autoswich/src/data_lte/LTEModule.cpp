@@ -76,6 +76,28 @@ bool LTEModule::powerOn() {
         }
     }
 
+    // Ultimo recurso: reset forzado PWRKEY >12.6s (datasheet SIM7080G)
+    static RTC_DATA_ATTR uint8_t s_forcedResetCount = 0;
+    if (s_forcedResetCount >= 1) {
+        debugPrint("Backoff activo: reset forzado ya usado este boot");
+        debugPrint("Error: No se pudo encender el modulo");
+        return false;
+    }
+
+    debugPrint("Reset forzado PWRKEY 13s...");
+    s_forcedResetCount++;
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? HIGH : LOW);
+    delay(13000);
+    digitalWrite(LTE_PWRKEY_PIN, LTE_PWRKEY_ACTIVE_HIGH ? LOW : HIGH);
+    delay(LTE_PWRKEY_POST_DELAY_MS);
+
+    if (isAlive()) {
+        debugPrint("Modem recuperado tras reset forzado");
+        disablePSM();
+        delay(1000);
+        return true;
+    }
+
     debugPrint("Error: No se pudo encender el modulo");
     return false;
 }
