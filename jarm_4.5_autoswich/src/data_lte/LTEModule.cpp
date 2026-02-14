@@ -40,11 +40,11 @@ bool LTEModule::powerOn() {
     
     if (isAlive()) {
         debugPrint("Modulo ya esta encendido");
-     
-        delay(2000);
+        disablePSM();
+        delay(1000);
         return true;
     }
-    
+
     for (uint16_t attempt = 0; attempt < LTE_POWER_ON_ATTEMPTS; attempt++) {
         if (_debugEnabled && _debugSerial) {
             _debugSerial->print("Intento de encendido ");
@@ -56,6 +56,7 @@ bool LTEModule::powerOn() {
         // Verificar antes de cada toggle para no apagar un modem que tardo en arrancar
         if (isAlive()) {
             debugPrint("SIM7080G respondio antes de toggle, ya encendido");
+            disablePSM();
             delay(1000);
             return true;
         }
@@ -67,13 +68,14 @@ bool LTEModule::powerOn() {
         while (millis() - startTime < LTE_AT_READY_TIMEOUT_MS) {
             if (isAlive()) {
                 debugPrint("SIM7080G encendido correctamente!");
+                disablePSM();
                 delay(1000);
                 return true;
             }
             delay(500);
         }
     }
-    
+
     debugPrint("Error: No se pudo encender el modulo");
     return false;
 }
@@ -118,6 +120,11 @@ bool LTEModule::isAlive() {
         delay(300);
     }
     return false;
+}
+
+void LTEModule::disablePSM() {
+    sendATCommand("AT+CPSMS=0", 1000);
+    debugPrint("PSM deshabilitado");
 }
 
 bool LTEModule::sendATCommand(const char* cmd, uint32_t timeout) {

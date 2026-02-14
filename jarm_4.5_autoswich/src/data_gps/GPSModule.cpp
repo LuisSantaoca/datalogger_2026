@@ -15,6 +15,7 @@ bool GPSModule::powerOn(uint16_t attempts) {
   flushInput();
   if (waitAtReady(GPS_AT_READY_TIMEOUT_MS)) {
     DEBUG_INFO(GPS, "Modulo ya encendido y respondiendo AT OK");
+    disablePSM();
     return true;
   }
 
@@ -25,6 +26,7 @@ bool GPSModule::powerOn(uint16_t attempts) {
     flushInput();
     if (waitAtReady(GPS_AT_READY_TIMEOUT_MS)) {
       DEBUG_INFO(GPS, "Modulo respondio antes de toggle, ya encendido");
+      disablePSM();
       return true;
     }
 
@@ -32,6 +34,7 @@ bool GPSModule::powerOn(uint16_t attempts) {
     flushInput();
     if (waitAtReady(GPS_AT_READY_TIMEOUT_MS)) {
       DEBUG_INFO(GPS, "Modulo encendido y respondiendo AT OK");
+      disablePSM();
       return true;
     }
     DEBUG_WARN(GPS, String("Intento ") + (i+1) + " fallido, reintentando...");
@@ -39,6 +42,12 @@ bool GPSModule::powerOn(uint16_t attempts) {
 
   DEBUG_ERROR(GPS, "Fallo al encender el modulo despues de todos los intentos");
   return false;
+}
+
+void GPSModule::disablePSM() {
+  (void)sendCommand("AT+CPSMS=0");
+  (void)waitForOk(1000);
+  DEBUG_VERBOSE(GPS, "PSM deshabilitado");
 }
 
 bool GPSModule::powerOff() {
