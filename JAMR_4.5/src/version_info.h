@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.12.0"
+#define FW_VERSION_STRING   "v2.13.0"
 #define FW_VERSION_DATE     "2026-02-16"
-#define FW_VERSION_NAME     "iccid-nvs-cache"
+#define FW_VERSION_NAME     "consec-fail-recovery"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,16 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.13.0 | 2026-02-16 | consec-fail-recovery    | FIX-V13: Consecutive Fail Recovery
+//         |            |                         | Tracking fallos modem entre ciclos (RTC_DATA_ATTR)
+//         |            |                         | Tras 6 fallos consecutivos → esp_restart() + 3 ciclos backoff
+//         |            |                         | FR-38B: reset s_recoveryAttempts post-restart via resetRecoveryState()
+//         |            |                         | Boot banner con ciclos y modemConsecFails
+//         |            |                         | Satisface NFR-12B (recovery inter-ciclo), FR-38B (reset recovery state)
+//         |            |                         | Cambios: FeatureFlags.h(+flag), AppController.h(AppConfig),
+//         |            |                         |   JAMR_4.5.ino(RTC vars), AppController.cpp(recovery+tracking+banner),
+//         |            |                         |   LTEModule.cpp(resetRecoveryState), LTEModule.h(+method)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V13_CONSEC_FAIL_RECOVERY.md
 // v2.12.0 | 2026-02-16 | iccid-nvs-cache         | FIX-V11: ICCID NVS Cache con fallback
 //         |            |                         | Cache ICCID en NVS "sensores/iccid" tras primera lectura exitosa
 //         |            |                         | Ciclos subsecuentes usan cache (~1ms vs ~15-43s)
@@ -119,7 +129,7 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    12
+#define FW_VERSION_MINOR    13
 #define FW_VERSION_PATCH    0
 
 /*******************************************************************************

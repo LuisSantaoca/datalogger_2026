@@ -276,6 +276,28 @@
  */
 #define ENABLE_FIX_V12_BUFFER_TRIM_CR         1
 
+/**
+ * FIX-V13: Consecutive Fail Recovery
+ * Sistema: AppController / FSM / NVS
+ * Archivo: AppController.cpp, JAMR_4.5.ino, LTEModule.cpp
+ * Descripcion: Tracking de fallos de modem entre ciclos:
+ *   - modemConsecFails en RTC_DATA_ATTR (sobrevive deep sleep)
+ *   - Tras N fallos → esp_restart() (limpia GPIO/UART)
+ *   - Post-restart → backoff M ciclos (solo sensores)
+ *   - Estado de backoff en NVS (sobrevive esp_restart)
+ * Requisitos: NFR-12B (recovery inter-ciclo), FR-38B (reset recovery state)
+ * Origen: Portado de fenix_1.0 (zombie recovery)
+ * Documentacion: fixs-feats/fixs/FIX_V13_CONSEC_FAIL_RECOVERY.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY   1
+
+/** @brief Fallos consecutivos antes de esp_restart() */
+#define FIX_V13_FAIL_THRESHOLD                6
+
+/** @brief Ciclos sin modem post-restart (backoff) */
+#define FIX_V13_BACKOFF_CYCLES                3
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -457,6 +479,16 @@ inline void printActiveFlags() {
     Serial.println(F("  [X] FIX-V12: Buffer Trim CR"));
     #else
     Serial.println(F("  [ ] FIX-V12: Buffer Trim CR"));
+    #endif
+
+    #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+    Serial.print(F("  [X] FIX-V13: Consec Fail Recovery ("));
+    Serial.print(FIX_V13_FAIL_THRESHOLD);
+    Serial.print(F("fails/"));
+    Serial.print(FIX_V13_BACKOFF_CYCLES);
+    Serial.println(F("backoff)"));
+    #else
+    Serial.println(F("  [ ] FIX-V13: Consec Fail Recovery"));
     #endif
 
     // FEAT Flags

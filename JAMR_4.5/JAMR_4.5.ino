@@ -11,6 +11,16 @@
  */
 
 #include "AppController.h"
+#include "src/FeatureFlags.h"  // FIX-V13: necesario antes de guards
+
+// ============ [FIX-V13 START] Variables persistentes en RTC memory ============
+#if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+/** @brief Contador de ciclos desde power-on (persiste en deep sleep y esp_restart) */
+RTC_DATA_ATTR uint16_t ciclos = 0;
+/** @brief Fallos consecutivos de modem (persiste en deep sleep y esp_restart) */
+RTC_DATA_ATTR uint8_t modemConsecFails = 0;
+#endif
+// ============ [FIX-V13 END] ============
 
 /** @brief Tiempo de sleep para pruebas: 30 segundos */
 const uint64_t SLEEP_30_SECONDS  = 30ULL * 1000000ULL;
@@ -53,8 +63,16 @@ const uint64_t TIEMPO_SLEEP_ACTIVO = SLEEP_10_MINUTES;
  * y llama a AppInit para inicializar todos los módulos del sistema.
  */
 void setup() {
+  #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+  ciclos++;
+  #endif
+
   AppConfig cfg;
   cfg.sleep_time_us = TIEMPO_SLEEP_ACTIVO;
+  #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+  cfg.ciclos = ciclos;
+  cfg.modemConsecFails = modemConsecFails;
+  #endif
 
   AppInit(cfg);
 }

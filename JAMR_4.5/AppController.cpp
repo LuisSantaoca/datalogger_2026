@@ -129,6 +129,13 @@ static uint32_t g_stress_cycle_start_ms = 0;
 #endif
 // ============ [FEAT-V5 END] ============
 
+// ============ [FIX-V13 START] Variables para Consecutive Fail Recovery ============
+#if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+/** @brief Si true, skip todas las operaciones de modem este ciclo (backoff) */
+static bool g_skipModemThisCycle = false;
+#endif
+// ============ [FIX-V13 END] ============
+
 // ============ [DEBUG-EMI START] Variables para diagnóstico EMI ============
 #if DEBUG_EMI_DIAGNOSTIC_ENABLED
 /** @brief Contador de ciclos para diagnóstico EMI (persiste en deep sleep) */
@@ -991,6 +998,15 @@ void AppInit(const AppConfig& cfg) {
   printActiveFlags();
   // ============ [FEAT-V1 END] ============
 
+  // ============ [FIX-V13 START] Banner de ciclo ============
+  #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+  Serial.print("[INFO] Ciclo: ");
+  Serial.println(g_cfg.ciclos);
+  Serial.print("[INFO] Modem fails consecutivos: ");
+  Serial.println(g_cfg.modemConsecFails);
+  #endif
+  // ============ [FIX-V13 END] ============
+
   // ============ [FIX-V5 START] Inicializar Watchdog de Sistema ============
   #if ENABLE_FIX_V5_WATCHDOG
   // ESP-IDF v5.x requiere estructura de configuración
@@ -1069,6 +1085,71 @@ void AppInit(const AppConfig& cfg) {
   ProdDiag::setResetReason((uint8_t)esp_reset_reason());
   #endif
   // ============ [FEAT-V7 END] ============
+
+  // ============ [FIX-V13 START] Consecutive Fail Recovery ============
+  #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+  {
+    extern uint8_t modemConsecFails;
+    static RTC_DATA_ATTR uint8_t modemSkipCycles = 0;
+
+    // 1. Detectar post-restart: leer flag de NVS
+    preferences.begin("modem_rcv", false);
+    bool postRestart = preferences.getBool("postRst", false);
+    if (postRestart) {
+      modemSkipCycles = preferences.getUChar("skipCyc", FIX_V13_BACKOFF_CYCLES);
+      preferences.putBool("postRst", false);  // Limpiar flag
+      preferences.end();
+
+      // FR-38B: Reset explicito de estados RTC que sobreviven esp_restart()
+      modemConsecFails = 0;
+      lte.resetRecoveryState();  // Reset s_recoveryAttempts de FIX-V7
+
+      Serial.print("[FIX-V13] Post-restart detectado. Backoff: ");
+      Serial.print(modemSkipCycles);
+      Serial.println(" ciclos");
+      Serial.println("[FIX-V13][FR-38B] modemConsecFails y s_recoveryAttempts reseteados");
+    } else {
+      preferences.end();
+    }
+
+    // 2. Evaluar estado actual
+    if (modemSkipCycles > 0) {
+      // ESTADO: BACKOFF — solo sensores, sin modem
+      modemSkipCycles--;
+      g_skipModemThisCycle = true;
+      Serial.print("[FIX-V13] Backoff activo. Skip modem. Restantes: ");
+      Serial.println(modemSkipCycles);
+
+    } else if (g_cfg.modemConsecFails >= FIX_V13_FAIL_THRESHOLD) {
+      // ESTADO: THRESHOLD — guardar backoff y reiniciar
+      Serial.println("[FIX-V13] ========================================");
+      Serial.print("[FIX-V13] THRESHOLD ALCANZADO: ");
+      Serial.print(g_cfg.modemConsecFails);
+      Serial.print(" fallos >= ");
+      Serial.println(FIX_V13_FAIL_THRESHOLD);
+      Serial.println("[FIX-V13] Guardando backoff en NVS y reiniciando...");
+      Serial.println("[FIX-V13] ========================================");
+
+      preferences.begin("modem_rcv", false);
+      preferences.putBool("postRst", true);
+      preferences.putUChar("skipCyc", FIX_V13_BACKOFF_CYCLES);
+      preferences.end();
+
+      // NOTA: NO resetear modemConsecFails aqui. Se resetea en boot post-restart.
+      Serial.flush();
+      delay(100);
+      esp_restart();
+      // No retorna
+    }
+
+    // Log estado
+    Serial.print("[FIX-V13] modemConsecFails=");
+    Serial.print(g_cfg.modemConsecFails);
+    Serial.print(" skipCycles=");
+    Serial.println(modemSkipCycles);
+  }
+  #endif
+  // ============ [FIX-V13 END] ============
 
   (void)adcSensor.begin();
   (void)i2cSensor.begin();
@@ -1339,9 +1420,17 @@ void AppLoop() {
       GpsFix fix;
       bool gotFix = false;
 
+      #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+      if (g_skipModemThisCycle) {
+        Serial.println("[FIX-V13] Backoff activo: skip GPS powerOn");
+      } else {
+      #endif
       if (gps.powerOn()) {
         gotFix = gps.getCoordinatesAndShutdown(fix);
       }
+      #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+      }
+      #endif
 
       if (gotFix && fix.hasFix) {
         formatCoord(g_lat, sizeof(g_lat), fix.latitude);
@@ -1509,7 +1598,7 @@ void AppLoop() {
 
     case AppState::Cycle_SendLTE: {
       TIMING_START(g_timing, sendLte);
-      
+
       #if DEBUG_MOCK_LTE
       // [DEBUG][FEAT-V5] LTE simulado para stress test - marca todo como enviado
       {
@@ -1524,11 +1613,36 @@ void AppLoop() {
         Serial.printf("[MOCK][LTE] %d tramas marcadas como enviadas (%lums)\n", count, millis() - mockStart);
       }
       #else
-      Serial.println("[DEBUG][APP] Iniciando envio por LTE...");
-      (void)sendBufferOverLTE_AndMarkProcessed();
-      Serial.println("[DEBUG][APP] Envio completado, pasando a CompactBuffer");
+
+      #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+      if (g_skipModemThisCycle) {
+        Serial.println("[FIX-V13] Backoff activo: skip LTE. Datos en buffer.");
+      } else {
       #endif
-      
+      Serial.println("[DEBUG][APP] Iniciando envio por LTE...");
+      bool lteOk = sendBufferOverLTE_AndMarkProcessed();
+      Serial.println("[DEBUG][APP] Envio completado, pasando a CompactBuffer");
+
+      #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+      {
+        extern uint8_t modemConsecFails;
+        if (lteOk) {
+          modemConsecFails = 0;
+          Serial.println("[FIX-V13] Modem OK. Fails reseteado a 0.");
+        } else {
+          modemConsecFails++;
+          Serial.print("[FIX-V13] LTE fallo. Fails consecutivos: ");
+          Serial.println(modemConsecFails);
+        }
+      }
+      #endif
+
+      #if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
+      }
+      #endif
+
+      #endif // DEBUG_MOCK_LTE
+
       TIMING_END(g_timing, sendLte);
       g_state = AppState::Cycle_CompactBuffer;
       break;

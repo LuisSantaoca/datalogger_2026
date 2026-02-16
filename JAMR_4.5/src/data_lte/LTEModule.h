@@ -67,6 +67,14 @@ public:
     bool powerOff();
 
     /**
+     * @brief FIX-V13/FR-38B: Reset recovery state (s_recoveryAttempts)
+     * @details Marca flag para que powerOn() resetee s_recoveryAttempts
+     *          en su proxima invocacion. Necesario tras esp_restart()
+     *          porque RTC_DATA_ATTR sobrevive el reinicio.
+     */
+    void resetRecoveryState();
+
+    /**
      * @brief Check if module is responding to AT commands
      * @return true if module responds, false otherwise
      */

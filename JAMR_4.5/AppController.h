@@ -23,6 +23,10 @@
 struct AppConfig {
   /** @brief Tiempo de deep sleep en microsegundos (defecto: 10 minutos) */
   uint64_t sleep_time_us = 10ULL * 60ULL * 1000000ULL;
+  /** @brief Contador de ciclos desde power-on (diagnostico) */
+  uint16_t ciclos = 0;
+  /** @brief FIX-V13: Fallos consecutivos de modem entre ciclos */
+  uint8_t modemConsecFails = 0;
 };
 
 /**

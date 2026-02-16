@@ -179,6 +179,9 @@ void LTEModule::begin() {
     delay(100);
 }
 
+// FIX-V13/FR-38B: Flag file-scope para resetear s_recoveryAttempts desde resetRecoveryState()
+RTC_DATA_ATTR bool s_forceResetRecovery_lte = false;
+
 bool LTEModule::powerOn() {
 #if ENABLE_FIX_V7_ZOMBIE_MITIGATION
     // ============ [FIX-V7 START] Mitigación estado zombie (v1.1) ============
@@ -187,7 +190,14 @@ bool LTEModule::powerOn() {
     
     // Backoff: evitar loops de recuperación que gastan batería
     static RTC_DATA_ATTR uint8_t s_recoveryAttempts = 0;
-    
+
+    // FIX-V13/FR-38B: Check si se pidió reset desde resetRecoveryState()
+    if (s_forceResetRecovery_lte) {
+        s_recoveryAttempts = 0;
+        s_forceResetRecovery_lte = false;
+        debugPrint("[FIX-V13][FR-38B] s_recoveryAttempts reseteado por restart");
+    }
+
     // 0. Verificar si ya está encendido (idempotencia)
     if (isAlive()) {
         debugPrint("[LTE] Modem ya esta encendido");
@@ -339,6 +349,15 @@ bool LTEModule::powerOn() {
     return false;
 #endif
 }
+
+// ============ [FIX-V13 START] FR-38B: Reset recovery state ============
+void LTEModule::resetRecoveryState() {
+    // s_recoveryAttempts es static RTC_DATA_ATTR local a powerOn().
+    // Usamos s_forceResetRecovery_lte (file-scope RTC) como señal.
+    // powerOn() checkea este flag y resetea s_recoveryAttempts.
+    s_forceResetRecovery_lte = true;
+}
+// ============ [FIX-V13 END] ============
 
 bool LTEModule::powerOff() {
     debugPrint("Apagando SIM7080G...");
