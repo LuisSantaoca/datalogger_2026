@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.13.0"
+#define FW_VERSION_STRING   "v2.14.0"
 #define FW_VERSION_DATE     "2026-02-16"
-#define FW_VERSION_NAME     "consec-fail-recovery"
+#define FW_VERSION_NAME     "battery-modem-gate"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,13 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.14.0 | 2026-02-16 | battery-modem-gate      | FIX-V14: Battery Modem Gate
+//         |            |                         | Skip modem (GPS+ICCID+LTE) cuando vBat <= 3.70V
+//         |            |                         | Reactiva modem cuando vBat >= 3.90V (histeresis 200mV)
+//         |            |                         | Sensores siguen leyendo, datos en buffer
+//         |            |                         | Reutiliza g_skipModemThisCycle de FIX-V13
+//         |            |                         | Cambios: FeatureFlags.h(+flag+guard), AppController.cpp(+RTC var+eval)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V14_BATTERY_MODEM_GATE.md
 // v2.13.0 | 2026-02-16 | consec-fail-recovery    | FIX-V13: Consecutive Fail Recovery
 //         |            |                         | Tracking fallos modem entre ciclos (RTC_DATA_ATTR)
 //         |            |                         | Tras 6 fallos consecutivos → esp_restart() + 3 ciclos backoff
@@ -129,7 +136,7 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    13
+#define FW_VERSION_MINOR    14
 #define FW_VERSION_PATCH    0
 
 /*******************************************************************************

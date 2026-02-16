@@ -298,6 +298,35 @@
 /** @brief Ciclos sin modem post-restart (backoff) */
 #define FIX_V13_BACKOFF_CYCLES                3
 
+/**
+ * FIX-V14: Battery Modem Gate
+ * Sistema: Energia / Modem / AppController
+ * Archivo: AppController.cpp
+ * Descripcion: Deshabilita operaciones de modem (GPS, ICCID, LTE) cuando
+ *   la bateria esta por debajo del umbral de operacion segura del modem.
+ *   Sensores siguen leyendo y datos se acumulan en buffer.
+ *   Modem se reactiva cuando bateria supera umbral de salida.
+ *   Usa g_skipModemThisCycle como mecanismo de skip.
+ * Histeresis: 200mV (3.70V off, 3.90V on)
+ * Depende: FIX-V3 (readVBatFiltered), FIX-V13 (g_skipModemThisCycle)
+ * Documentacion: fixs-feats/fixs/FIX_V14_BATTERY_MODEM_GATE.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V14_BATTERY_MODEM_GATE     1
+
+/** @brief Voltaje por debajo del cual se desactiva el modem (voltios) */
+#define FIX_V14_VBAT_MODEM_OFF                3.70f
+
+/** @brief Voltaje por encima del cual se reactiva el modem (voltios) */
+#define FIX_V14_VBAT_MODEM_ON                 3.90f
+
+// ============================================================
+// FIX-V14: GUARD DE DEPENDENCIAS
+// ============================================================
+#if ENABLE_FIX_V14_BATTERY_MODEM_GATE && !ENABLE_FIX_V3_LOW_BATTERY_MODE
+  #error "FIX-V14 requiere readVBatFiltered() de FIX-V3. Habilitar FIX-V3 o extraer la funcion."
+#endif
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -489,6 +518,16 @@ inline void printActiveFlags() {
     Serial.println(F("backoff)"));
     #else
     Serial.println(F("  [ ] FIX-V13: Consec Fail Recovery"));
+    #endif
+
+    #if ENABLE_FIX_V14_BATTERY_MODEM_GATE
+    Serial.print(F("  [X] FIX-V14: Battery Modem Gate ("));
+    Serial.print(FIX_V14_VBAT_MODEM_OFF, 2);
+    Serial.print(F("V/"));
+    Serial.print(FIX_V14_VBAT_MODEM_ON, 2);
+    Serial.println(F("V)"));
+    #else
+    Serial.println(F("  [ ] FIX-V14: Battery Modem Gate"));
     #endif
 
     // FEAT Flags

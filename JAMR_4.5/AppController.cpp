@@ -129,12 +129,20 @@ static uint32_t g_stress_cycle_start_ms = 0;
 #endif
 // ============ [FEAT-V5 END] ============
 
-// ============ [FIX-V13 START] Variables para Consecutive Fail Recovery ============
-#if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY
-/** @brief Si true, skip todas las operaciones de modem este ciclo (backoff) */
+// ============ [FIX-V13/V14] Variable compartida: skip modem este ciclo ============
+#if ENABLE_FIX_V13_CONSEC_FAIL_RECOVERY || ENABLE_FIX_V14_BATTERY_MODEM_GATE
+/** @brief Si true, skip todas las operaciones de modem este ciclo
+ *  Write-only-true: FIX-V13 (backoff) y FIX-V14 (bateria) pueden activarlo.
+ *  Se resetea a false en cada wakeup (no es RTC). */
 static bool g_skipModemThisCycle = false;
 #endif
-// ============ [FIX-V13 END] ============
+
+// ============ [FIX-V14 START] Battery Modem Gate ============
+#if ENABLE_FIX_V14_BATTERY_MODEM_GATE
+/** @brief Estado persistente: modem bloqueado por bateria baja (histeresis) */
+RTC_DATA_ATTR static bool g_modemGatedByBat = false;
+#endif
+// ============ [FIX-V14 END] ============
 
 // ============ [DEBUG-EMI START] Variables para diagnóstico EMI ============
 #if DEBUG_EMI_DIAGNOSTIC_ENABLED
@@ -1357,6 +1365,28 @@ void AppLoop() {
       g_varStr[5] = vHum;
       g_varStr[6] = vBat;
       TIMING_END(g_timing, sensors);
+
+      // ============ [FIX-V14 START] Battery Modem Gate ============
+      #if ENABLE_FIX_V14_BATTERY_MODEM_GATE
+      {
+        float vBatFiltered = readVBatFiltered();
+
+        if (vBatFiltered <= FIX_V14_VBAT_MODEM_OFF) {
+          g_modemGatedByBat = true;
+        } else if (vBatFiltered >= FIX_V14_VBAT_MODEM_ON) {
+          g_modemGatedByBat = false;
+        }
+        // Entre OFF y ON: mantener estado anterior (histeresis)
+
+        if (g_modemGatedByBat) {
+          g_skipModemThisCycle = true;
+          Serial.print(F("[FIX-V14] vBat="));
+          Serial.print(vBatFiltered, 2);
+          Serial.println(F("V: modem gate por bateria baja"));
+        }
+      }
+      #endif
+      // ============ [FIX-V14 END] ============
 
       if (g_firstCycleAfterBoot) {
         Serial.println("[INFO][APP] Primer ciclo: leyendo GPS");
