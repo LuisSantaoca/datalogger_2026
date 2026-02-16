@@ -251,6 +251,20 @@
 #define FIX_V7_MAX_RECOVERY_PER_BOOT          1
 
 /**
+ * FIX-V11: ICCID NVS Cache con fallback
+ * Sistema: AppController / NVS
+ * Archivo: AppController.cpp
+ * Descripcion: Cache ICCID en NVS "sensores/iccid" tras primera lectura.
+ *              Si modem falla, usa cache. Elimina powerOn extra solo para ICCID.
+ * Ahorro: ~15-43s por ciclo (elimina powerOn+powerOff de ICCID).
+ * Requisitos: FR-07 (almacenar ICCID en NVS), FR-08 (recuperar de NVS si falla)
+ * Origen: Portado de jarm_4.5_autoswich FIX-V14
+ * Documentacion: fixs-feats/fixs/FIX_V11_ICCID_NVS_CACHE.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V11_ICCID_NVS_CACHE       1
+
+/**
  * FIX-V12: Buffer Trim CR
  * Sistema: Buffer / LittleFS
  * Archivo: src/data_buffer/BUFFERModule.cpp
@@ -433,6 +447,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V7: Zombie Mitigation"));
     #endif
     
+    #if ENABLE_FIX_V11_ICCID_NVS_CACHE
+    Serial.println(F("  [X] FIX-V11: ICCID NVS Cache"));
+    #else
+    Serial.println(F("  [ ] FIX-V11: ICCID NVS Cache"));
+    #endif
+
     #if ENABLE_FIX_V12_BUFFER_TRIM_CR
     Serial.println(F("  [X] FIX-V12: Buffer Trim CR"));
     #else

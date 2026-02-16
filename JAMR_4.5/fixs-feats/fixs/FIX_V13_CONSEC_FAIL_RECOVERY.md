@@ -172,9 +172,9 @@ El firmware no tiene estado entre ciclos respecto a la salud del modem. Cada cic
 | `modem_rcv/postRst` | NVS (bool) | esp_restart() | Flag de post-restart |
 | `modem_rcv/skipCyc` | NVS (uint8) | esp_restart() | Ciclos de backoff iniciales |
 
-**Razon de usar NVS para backoff:** `esp_restart()` resetea RTC_DATA_ATTR. El backoff necesita sobrevivir el restart, por eso se guarda en NVS.
+**Razon de usar NVS para backoff:** RTC_DATA_ATTR **sobrevive** `esp_restart()` en ESP32-S3 (solo se borra con power-on reset). El backoff necesita sobrevivir el restart, y NVS es la forma mas segura.
 
-**Razon de usar RTC para modemConsecFails:** Debe sobrevivir deep sleep pero NO esp_restart() (se resetea a 0 tras restart intencional).
+**Razon de usar RTC para modemConsecFails:** Debe sobrevivir deep sleep. Tambien sobrevive `esp_restart()`, por lo que se resetea **explicitamente** en el boot post-restart (cuando `postRst == true`).
 
 ### Codigo: JAMR_4.5.ino (variables RTC)
 
@@ -223,9 +223,15 @@ struct AppConfig {
         modemSkipCycles = preferences.getUChar("skipCyc", FIX_V13_BACKOFF_CYCLES);
         preferences.putBool("postRst", false);  // Limpiar flag
         preferences.end();
+
+        // FR-38B: Reset explícito de estados RTC que sobreviven esp_restart()
+        modemConsecFails = 0;
+        lte.resetRecoveryState();  // Reset s_recoveryAttempts de FIX-V7
+
         Serial.print("[FIX-V13] Post-restart detectado. Backoff: ");
         Serial.print(modemSkipCycles);
         Serial.println(" ciclos");
+        Serial.println("[FIX-V13][FR-38B] modemConsecFails y s_recoveryAttempts reseteados");
     } else {
         preferences.end();
     }
@@ -253,7 +259,9 @@ struct AppConfig {
         preferences.putUChar("skipCyc", FIX_V13_BACKOFF_CYCLES);
         preferences.end();
 
-        modemConsecFails = 0;  // Reset para despues del restart
+        // NOTA: NO resetear modemConsecFails aqui. Se resetea en boot post-restart
+        // (cuando postRst == true) para garantizar consistencia. RTC_DATA_ATTR
+        // sobrevive esp_restart() en ESP32-S3.
         Serial.flush();
         delay(100);
         esp_restart();
@@ -289,6 +297,40 @@ if (lteOk) {
 #endif
 ```
 
+### Codigo: LTEModule — FR-38B reset de s_recoveryAttempts
+
+`s_recoveryAttempts` es `static RTC_DATA_ATTR` dentro de `powerOn()` (LTEModule.cpp:189). Sobrevive `esp_restart()`. Sin resetearlo, FIX-V7 ve `s_recoveryAttempts >= FIX_V7_MAX_RECOVERY_PER_BOOT` y salta toda la mitigacion zombie post-restart.
+
+**Solucion:** Agregar metodo publico en LTEModule:
+
+```cpp
+// En LTEModule.h:
+void resetRecoveryState();
+
+// En LTEModule.cpp:
+void LTEModule::resetRecoveryState() {
+    // FR-38B: Reset counter para que FIX-V7 tenga un intento limpio post-restart
+    // s_recoveryAttempts es static RTC_DATA_ATTR dentro de powerOn(),
+    // no es accesible directamente. Solución: variable de control.
+    static RTC_DATA_ATTR bool s_forceResetRecovery = false;
+    s_forceResetRecovery = true;
+}
+```
+
+Y en `powerOn()`, al inicio:
+
+```cpp
+static RTC_DATA_ATTR uint8_t s_recoveryAttempts = 0;
+static RTC_DATA_ATTR bool s_forceResetRecovery = false;
+if (s_forceResetRecovery) {
+    s_recoveryAttempts = 0;
+    s_forceResetRecovery = false;
+    Serial.println("[FIX-V13][FR-38B] s_recoveryAttempts reseteado por restart");
+}
+```
+
+**Alternativa mas simple:** Mover `s_recoveryAttempts` a miembro de clase (no static local) y resetearlo directamente. El ingeniero debe evaluar cual es mas limpia dado el scope de `powerOn()`.
+
 ---
 
 ## VALOR DE esp_restart()
@@ -299,9 +341,8 @@ if (lteOk) {
 |--------|-----------|
 | Reinicia todos los GPIOs a estado por defecto | Limpia posibles estados erroneos en PWRKEY |
 | Reinicializa UART | Limpia posible corrupcion serial |
-| Resetea RTC_DATA_ATTR (modemConsecFails) | Permite nuevo conteo desde 0 |
-| Resetea s_recoveryAttempts de FIX-V7 | Permite nuevo ciclo de zombie mitigation |
 | Re-ejecuta AppInit() completo | Reinicializa todos los modulos |
+| **NO** resetea RTC_DATA_ATTR automaticamente | modemConsecFails y s_recoveryAttempts **sobreviven** esp_restart(). Se resetean explicitamente en boot post-restart (FR-38B) |
 
 ### Que NO hace esp_restart()
 
@@ -322,7 +363,7 @@ if (lteOk) {
 
 | Fix | Interaccion |
 |-----|-------------|
-| FIX-V7 (Zombie Mitigation) | esp_restart() resetea s_recoveryAttempts, permitiendo nuevo intento FIX-V7 |
+| FIX-V7 (Zombie Mitigation) | `s_recoveryAttempts` sobrevive esp_restart() (RTC_DATA_ATTR). Se resetea explicitamente via `lte.resetRecoveryState()` en boot post-restart (FR-38B) |
 | FIX-V11 (ICCID Cache) | Durante backoff, ICCID se lee del NVS cache |
 | FEAT-V4 (Periodic Restart) | esp_restart() de FIX-V13 es diferente al de FEAT-V4 (different NVS flags) |
 | FEAT-V7 (Production Diag) | Los contadores de ProdDiag persisten en LittleFS (no se pierden con restart) |
@@ -357,7 +398,8 @@ El acumulador de FEAT-V4 (`g_accum_sleep_us`) es RTC_DATA_ATTR, por lo que se re
 | `AppController.h` | Extender AppConfig con ciclos + modemConsecFails | +5 |
 | `AppController.cpp` | Recovery logic en AppInit() + tracking en Cycle_SendLTE + banner | +50 |
 | `src/FeatureFlags.h` | Agregar flag + parametros | +12 |
-| `src/data_lte/LTEModule.cpp` | Reset `s_recoveryAttempts` en sw restart (interaccion FIX-V7) | +5 |
+| `src/data_lte/LTEModule.cpp` | Agregar `resetRecoveryState()` + check `s_forceResetRecovery` en `powerOn()` (FR-38B) | +10 |
+| `src/data_lte/LTEModule.h` | Declarar `resetRecoveryState()` | +1 |
 | `src/version_info.h` | Actualizar version | +3 |
 
 ---
@@ -410,6 +452,7 @@ El acumulador de FEAT-V4 (`g_accum_sleep_us`) es RTC_DATA_ATTR, por lo que se re
 |-------|--------|---------|
 | 2026-02-16 | Documentacion inicial. Portado de fenix_1.0 zombie recovery | 1.0 |
 | 2026-02-16 | Requisitos: NFR-12→NFR-12B+FR-38B. Eliminar ref FIX-V10. Agregar LTEModule.cpp. Documentar (void)→bool. | 1.1 |
+| 2026-02-16 | FR-38B: agregar codigo concreto para resetRecoveryState(). Corregir tabla esp_restart() (RTC_DATA_ATTR NO se resetea). Mover reset modemConsecFails al boot post-restart. Agregar LTEModule.h a archivos. | 1.2 |
 
 ---
 

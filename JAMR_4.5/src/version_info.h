@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.11.0"
+#define FW_VERSION_STRING   "v2.12.0"
 #define FW_VERSION_DATE     "2026-02-16"
-#define FW_VERSION_NAME     "buffer-trim-cr"
+#define FW_VERSION_NAME     "iccid-nvs-cache"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,13 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.12.0 | 2026-02-16 | iccid-nvs-cache         | FIX-V11: ICCID NVS Cache con fallback
+//         |            |                         | Cache ICCID en NVS "sensores/iccid" tras primera lectura exitosa
+//         |            |                         | Ciclos subsecuentes usan cache (~1ms vs ~15-43s)
+//         |            |                         | Satisface FR-07 (almacenar en NVS), FR-08 (recuperar si falla)
+//         |            |                         | Comando serial CLEAR_ICCID para invalidar cache tras cambio de SIM
+//         |            |                         | Cambios: FeatureFlags.h(+flag), AppController.cpp(Cycle_GetICCID), TestModule.cpp(+CLEAR_ICCID)
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V11_ICCID_NVS_CACHE.md
 // v2.11.0 | 2026-02-16 | buffer-trim-cr          | FIX-V12: Buffer Trim CR
 //         |            |                         | Agrega .trim() en 5 ubicaciones de readStringUntil() en BUFFERModule.cpp
 //         |            |                         | Elimina \r residual de tramas leídas del buffer LittleFS
@@ -112,7 +119,7 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    11
+#define FW_VERSION_MINOR    12
 #define FW_VERSION_PATCH    0
 
 /*******************************************************************************

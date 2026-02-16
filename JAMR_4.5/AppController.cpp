@@ -1370,7 +1370,7 @@ void AppLoop() {
     }
     case AppState::Cycle_GetICCID: {
       TIMING_START(g_timing, iccid);
-      
+
       #if DEBUG_MOCK_ICCID
       // [DEBUG][FEAT-V5] ICCID simulado para stress test
       {
@@ -1379,14 +1379,55 @@ void AppLoop() {
         Serial.printf("[MOCK][ICCID] %s (%lums)\n", g_iccid.c_str(), millis() - mockStart);
       }
       #else
+
+      #if ENABLE_FIX_V11_ICCID_NVS_CACHE
+      // ============ [FIX-V11 START] ICCID NVS Cache (FR-07, FR-08) ============
+      bool gotCachedIccid = false;
+
+      // 1. Intentar leer de NVS cache primero
+      preferences.begin("sensores", true);  // read-only
+      if (preferences.isKey("iccid")) {
+        g_iccid = preferences.getString("iccid", "");
+        if (g_iccid.length() > 0) {
+          gotCachedIccid = true;
+          Serial.print("[FIX-V11] ICCID de NVS cache: ");
+          Serial.println(g_iccid);
+        }
+      }
+      preferences.end();
+
+      // 2. Solo encender modem si no hay cache
+      if (!gotCachedIccid) {
+        Serial.println("[FIX-V11] Sin cache ICCID, intentando modem...");
+        if (lte.powerOn()) {
+          g_iccid = lte.getICCID();
+          lte.powerOff();
+
+          // 3. Cachear si se obtuvo
+          if (g_iccid.length() > 0) {
+            preferences.begin("sensores", false);  // read-write
+            preferences.putString("iccid", g_iccid);
+            preferences.end();
+            Serial.println("[FIX-V11] ICCID leido del modem y cacheado en NVS");
+          }
+        } else {
+          g_iccid = "";
+        }
+      }
+      // ============ [FIX-V11 END] ============
+
+      #else
+      // Codigo original: powerOn + getICCID + powerOff cada ciclo
       if (lte.powerOn()) {
         g_iccid = lte.getICCID();
         lte.powerOff();
       } else {
         g_iccid = "";
       }
-      #endif
-      
+      #endif // ENABLE_FIX_V11_ICCID_NVS_CACHE
+
+      #endif // DEBUG_MOCK_ICCID
+
       TIMING_END(g_timing, iccid);
       g_state = AppState::Cycle_BuildFrame;
       break;
