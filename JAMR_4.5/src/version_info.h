@@ -16,9 +16,9 @@
  * VERSIÓN ACTIVA - MODIFICAR SOLO ESTA SECCIÓN
  ******************************************************************************/
 
-#define FW_VERSION_STRING   "v2.9.0"
-#define FW_VERSION_DATE     "2026-02-03"
-#define FW_VERSION_NAME     "zombie-mitigation"
+#define FW_VERSION_STRING   "v2.11.0"
+#define FW_VERSION_DATE     "2026-02-16"
+#define FW_VERSION_NAME     "buffer-trim-cr"
 
 /*******************************************************************************
  * HISTORIAL DE VERSIONES (más reciente arriba)
@@ -27,6 +27,12 @@
  *          Cambios: archivo(línea), archivo(línea)
  ******************************************************************************/
 
+// v2.11.0 | 2026-02-16 | buffer-trim-cr          | FIX-V12: Buffer Trim CR
+//         |            |                         | Agrega .trim() en 5 ubicaciones de readStringUntil() en BUFFERModule.cpp
+//         |            |                         | Elimina \r residual de tramas leídas del buffer LittleFS
+//         |            |                         | Satisface FR-26 (eliminar caracteres de control residuales)
+//         |            |                         | Cambios: FeatureFlags.h(+flag), BUFFERModule.cpp(5x trim), version_info.h
+//         |            |                         | Docs: fixs-feats/fixs/FIX_V12_BUFFER_TRIM_CR.md
 // v2.9.0  | 2026-02-03 | zombie-mitigation       | FIX-V7: Mitigación estado zombie del modem SIM7080G
 //         |            |                         | Estrategia por capas en powerOn():
 //         |            |                         | - Intentos PWRKEY (3x) con isAlive() entre cada uno
@@ -106,8 +112,8 @@
 // Ejemplo: v2.0.1 -> MAJOR=2, MINOR=0, PATCH=1
 // Nota: Estos se deben actualizar manualmente si se necesitan
 #define FW_VERSION_MAJOR    2
-#define FW_VERSION_MINOR    7
-#define FW_VERSION_PATCH    1
+#define FW_VERSION_MINOR    11
+#define FW_VERSION_PATCH    0
 
 /*******************************************************************************
  * FUNCIÓN DE IMPRESIÓN

@@ -250,6 +250,18 @@
 /** @brief Máximo ciclos de recuperación completos por boot (evita loops) */
 #define FIX_V7_MAX_RECOVERY_PER_BOOT          1
 
+/**
+ * FIX-V12: Buffer Trim CR
+ * Sistema: Buffer / LittleFS
+ * Archivo: src/data_buffer/BUFFERModule.cpp
+ * Descripción: Agrega .trim() después de readStringUntil('\n') para
+ *              eliminar \r residual de tramas leídas del buffer.
+ * Requisito: FR-26 (eliminar caracteres de control residuales)
+ * Documentación: fixs-feats/fixs/FIX_V12_BUFFER_TRIM_CR.md
+ * Estado: Implementado
+ */
+#define ENABLE_FIX_V12_BUFFER_TRIM_CR         1
+
 // ============================================================
 // FEAT FLAGS - Nuevas funcionalidades
 // ============================================================
@@ -421,6 +433,12 @@ inline void printActiveFlags() {
     Serial.println(F("  [ ] FIX-V7: Zombie Mitigation"));
     #endif
     
+    #if ENABLE_FIX_V12_BUFFER_TRIM_CR
+    Serial.println(F("  [X] FIX-V12: Buffer Trim CR"));
+    #else
+    Serial.println(F("  [ ] FIX-V12: Buffer Trim CR"));
+    #endif
+
     // FEAT Flags
     #if ENABLE_FEAT_V2_CYCLE_TIMING
     Serial.println(F("  [X] FEAT-V2: Cycle Timing"));

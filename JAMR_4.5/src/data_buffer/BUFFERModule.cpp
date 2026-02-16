@@ -9,6 +9,7 @@
 
 #include "BUFFERModule.h"
 #include "config_data_buffer.h"
+#include "../FeatureFlags.h"
 
 BUFFERModule::BUFFERModule() {
     filePath = BUFFER_FILE_PATH;
@@ -51,9 +52,12 @@ bool BUFFERModule::readLines(String* lines, int maxLines, int& count) {
     
     while (file.available() && count < maxLines) {
         lines[count] = file.readStringUntil('\n');
+        #if ENABLE_FIX_V12_BUFFER_TRIM_CR
+        lines[count].trim();  // FIX-V12: eliminar \r residual (FR-26)
+        #endif
         count++;
     }
-    
+
     file.close();
     return true;
 }
@@ -108,6 +112,9 @@ bool BUFFERModule::readUnprocessedLines(String* lines, int maxLines, int& count)
     
     while (file.available() && count < maxLines) {
         String line = file.readStringUntil('\n');
+        #if ENABLE_FIX_V12_BUFFER_TRIM_CR
+        line.trim();  // FIX-V12: eliminar \r residual (FR-26)
+        #endif
         // Solo agregar líneas que no tengan el marcador de procesado
         if (!line.startsWith(PROCESSED_MARKER)) {
             lines[count] = line;
@@ -135,10 +142,13 @@ bool BUFFERModule::markLineAsProcessed(int lineNumber) {
     
     while (file.available() && totalLines < MAX_LINES_TO_READ) {
         allLines[totalLines] = file.readStringUntil('\n');
+        #if ENABLE_FIX_V12_BUFFER_TRIM_CR
+        allLines[totalLines].trim();  // FIX-V12: eliminar \r residual (FR-26)
+        #endif
         totalLines++;
     }
     file.close();
-    
+
     // Verificar que el número de línea sea válido
     if (lineNumber >= totalLines) {
         return false;
@@ -183,10 +193,13 @@ bool BUFFERModule::markLinesAsProcessed(int* lineNumbers, int count) {
     
     while (file.available() && totalLines < MAX_LINES_TO_READ) {
         allLines[totalLines] = file.readStringUntil('\n');
+        #if ENABLE_FIX_V12_BUFFER_TRIM_CR
+        allLines[totalLines].trim();  // FIX-V12: eliminar \r residual (FR-26)
+        #endif
         totalLines++;
     }
     file.close();
-    
+
     // Marcar todas las líneas indicadas
     for (int i = 0; i < count; i++) {
         int lineNum = lineNumbers[i];
@@ -231,6 +244,9 @@ bool BUFFERModule::removeProcessedLines() {
     
     while (file.available() && unprocessedCount < MAX_LINES_TO_READ) {
         String line = file.readStringUntil('\n');
+        #if ENABLE_FIX_V12_BUFFER_TRIM_CR
+        line.trim();  // FIX-V12: eliminar \r residual (FR-26)
+        #endif
         // Solo guardar líneas sin el marcador
         if (!line.startsWith(PROCESSED_MARKER)) {
             unprocessedLines[unprocessedCount] = line;
