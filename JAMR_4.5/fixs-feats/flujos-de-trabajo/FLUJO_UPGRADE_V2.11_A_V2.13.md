@@ -69,7 +69,7 @@ Esta limitacion es inherente al hardware y no puede resolverse por firmware.
 |-----|--------|------------------------|-----------|
 | FIX-V11 | ICCID NVS Cache | **FR-07, FR-08** (obligatorio, nunca implementado) | Alta |
 | FIX-V12 | Buffer Trim CR | **FR-26** (obligatorio, nunca implementado) | Alta |
-| FIX-V13 | Consecutive Fail Recovery | **NFR-12** (recovery automatica de zombie) | Alta |
+| FIX-V13 | Consecutive Fail Recovery | **NFR-12B, FR-38B** (recovery inter-ciclo + reset state en sw restart) | Alta |
 
 ### 2.2 Fix DESCARTADO
 
@@ -146,7 +146,7 @@ git checkout -b fix-v12/buffer-trim-cr
 |---------|--------|
 | `src/FeatureFlags.h` | Agregar `ENABLE_FIX_V12_BUFFER_TRIM_CR` despues de FIX-V9 |
 | `src/data_buffer/BUFFERModule.cpp` | Agregar `.trim()` en 5 ubicaciones |
-| `src/version_info.h` | Actualizar a v2.11.0 |
+| `src/version_info.h` | Actualizar a v2.11.0 (sincronizar FW_VERSION_MAJOR/MINOR/PATCH con STRING) |
 
 ### Cambio en FeatureFlags.h
 
@@ -400,7 +400,7 @@ Refs: fixs-feats/fixs/FIX_V11_ICCID_NVS_CACHE.md"
 
 ## 6. FASE 3: FIX-V13 — Consecutive Fail Recovery → v2.13.0
 
-**Riesgo:** MEDIO | **Complejidad:** ALTA | **Requisito:** NFR-12
+**Riesgo:** MEDIO | **Complejidad:** ALTA | **Requisitos:** NFR-12B, FR-38B
 
 ### Por que tercero
 
@@ -439,7 +439,7 @@ git checkout -b fix-v13/consec-fail-recovery
  *              Tras N fallos consecutivos: esp_restart() como recovery.
  *              Post-restart: backoff M ciclos sin modem (solo sensores).
  *              Reset contador a 0 si TX exitoso.
- * Requisito: NFR-12 (recovery automatica de estados zombie)
+ * Requisitos: NFR-12B (recovery inter-ciclo), FR-38B (reset recovery state en sw restart)
  * Documentacion: fixs-feats/fixs/FIX_V13_CONSEC_FAIL_RECOVERY.md
  * Estado: Implementado
  */
@@ -653,6 +653,7 @@ Son complementarios: FIX-V7 intenta recovery DENTRO de un ciclo. Si falla, FIX-V
 - Costo de `esp_restart()` innecesario: ~10s de delay, datos preservados
 - Costo de no detectar zombie real: datos sin enviar indefinidamente
 - En un device sin autoswitch, ser conservador es preferible
+- Discriminacion de tipo de fallo (FR-39) diferida a v2.14.0+ como mejora incremental
 
 ### NVS Storage
 
@@ -695,7 +696,7 @@ git commit -m "fix(FIX-V13): recovery por fallos consecutivos de modem
 - Post-restart: backoff 3 ciclos (solo sensores, datos en buffer)
 - TX exitoso resetea contador a 0
 - Preserva codigo original en #else
-- Satisface NFR-12 (recovery automatica de estados zombie)
+- Satisface NFR-12B (recovery inter-ciclo) y FR-38B (reset recovery state en sw restart)
 
 Refs: fixs-feats/fixs/FIX_V13_CONSEC_FAIL_RECOVERY.md"
 ```
@@ -849,7 +850,9 @@ Esto NO es un fix de firmware — es un procedimiento operativo externo.
 | FR-07 | ICCID almacenado en NVS | **FIX-V11** | Pendiente (Fase 2) |
 | FR-08 | Recuperar ICCID de NVS si falla | **FIX-V11** | Pendiente (Fase 2) |
 | FR-26 | Eliminar \r residual de buffer | **FIX-V12** | Pendiente (Fase 1) |
-| NFR-12 | Recovery automatica de zombie | **FIX-V13** + FIX-V7 | Pendiente (Fase 3) |
+| NFR-12 | Recovery intra-ciclo de zombie | **FIX-V7** | Implementado (v2.9.0) |
+| NFR-12B | Recovery inter-ciclo (fallos consecutivos) | **FIX-V13** | Pendiente (Fase 3) |
+| FR-38B | Reset recovery state en sw restart | **FIX-V13** | Pendiente (Fase 3) |
 
 **Actualizar** REQUISITOS_FIRMWARE.md seccion 8 (Trazabilidad) despues de merge de cada fase.
 
