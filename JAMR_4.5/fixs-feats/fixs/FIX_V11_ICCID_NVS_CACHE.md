@@ -278,9 +278,11 @@ Resultado: Trama degradada pero datos se conservan en buffer
 
 ```
 1. NVS cache: ICCID antiguo
-2. ICCID se usa del cache (incorrecto temporalmente)
-3. Cuando modem funciona normalmente, un ciclo futuro leera el nuevo ICCID
-NOTA: Requiere borrar NVS manualmente o esperar primer boot limpio
+2. ICCID se usa del cache (incorrecto)
+3. El cache NO se invalida automaticamente — NVS sobrevive power cycle, deep sleep y esp_restart()
+4. Tramas se envian con ICCID de la SIM anterior (identidad incorrecta)
+Solucion: Comando serial CLEAR_ICCID (via FEAT-V8 TestModule) borra key "sensores/iccid"
+           Proximo ciclo detecta cache vacio → lee del modem → cachea nuevo ICCID
 ```
 
 ---
@@ -292,6 +294,7 @@ NOTA: Requiere borrar NVS manualmente o esperar primer boot limpio
 | FIX-V8 (ICCID Fail Logging) | Solo se registra fallo cuando se intenta powerOn (no cuando usa cache). |
 | FIX-V13 (Consec Fail) | Reducir powerOns reduce oportunidades de fallo consecutivo. |
 | FEAT-V7 (Production Diag) | AT timeouts solo se registran cuando se intenta powerOn. |
+| FEAT-V8 (Testing System) | Agregar comando `CLEAR_ICCID` para invalidar cache tras cambio de SIM. |
 
 ---
 
@@ -301,6 +304,7 @@ NOTA: Requiere borrar NVS manualmente o esperar primer boot limpio
 |---------|--------|--------------|
 | `src/FeatureFlags.h` | Agregar flag `ENABLE_FIX_V11_ICCID_NVS_CACHE` | +10 |
 | `AppController.cpp` | Reescribir Cycle_GetICCID con logica de cache | +30 |
+| `src/data_tests/TestModule.cpp` | Agregar comando `CLEAR_ICCID` | +5 |
 | `src/version_info.h` | Actualizar version | +3 |
 
 ---
@@ -335,7 +339,7 @@ NOTA: Requiere borrar NVS manualmente o esperar primer boot limpio
 
 | Limitacion | Razon | Mitigacion |
 |------------|-------|------------|
-| Si SIM se reemplaza, cache tiene ICCID viejo | NVS persiste hasta borrado explicito | Borrar NVS manualmente o esperar power cycle limpio |
+| Si SIM se reemplaza, cache tiene ICCID viejo | NVS persiste indefinidamente (sobrevive power cycle, deep sleep, esp_restart). Solo se borra con nvs_flash_erase() o reflash | Comando serial `CLEAR_ICCID` via FEAT-V8 (TestModule). Implementar junto con FIX-V11 |
 | Si NVS se corrompe, ICCID se pierde | Raro, NVS tiene wear leveling | Relectura automatica del modem |
 | Primera lectura sigue requiriendo powerOn | Inevitable: hay que leer al menos una vez | Solo pasa una vez (primer boot) |
 
@@ -347,6 +351,7 @@ NOTA: Requiere borrar NVS manualmente o esperar primer boot limpio
 |-------|--------|---------|
 | 2026-02-16 | Documentacion inicial. Portado de jarm_4.5_autoswich FIX-V14 | 1.0 |
 | 2026-02-16 | Eliminar refs FIX-V10 (descartado). Alinear codigo con FLUJO. Preservar original en #else. | 1.1 |
+| 2026-02-16 | Corregir escenario 5: NVS no se borra con power cycle. Solucion: comando CLEAR_ICCID via FEAT-V8. Actualizar limitaciones e interacciones. | 1.2 |
 
 ---
 

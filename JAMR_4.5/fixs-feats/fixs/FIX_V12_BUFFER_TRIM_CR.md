@@ -102,7 +102,7 @@ lines[count].trim();
  *              eliminar \r residual de tramas leidas del buffer.
  * Origen: Portado de jarm_4.5_autoswich FIX-V13
  * Documentacion: fixs-feats/fixs/FIX_V12_BUFFER_TRIM_CR.md
- * Estado: Propuesto
+ * Estado: Aprobado
  */
 #define ENABLE_FIX_V12_BUFFER_TRIM_CR    1
 ```
@@ -122,18 +122,17 @@ lines[count].trim();  // FIX-V12: eliminar \r residual
 #endif
 ```
 
-### Funciones afectadas
+### Funciones afectadas (5 ubicaciones)
 
-Basado en el patron de jarm_4.5_autoswich, las funciones a verificar son:
+| Funcion | Variable | Requiere trim |
+|---------|----------|---------------|
+| `readLines()` | `lines[count]` | Si |
+| `readUnprocessedLines()` | `line` | Si |
+| `markLineAsProcessed()` | `allLines[totalLines]` | Si |
+| `markLinesAsProcessed()` | `allLines[totalLines]` | Si |
+| `removeProcessedLines()` | `line` | Si |
 
-| Funcion | Descripcion | Requiere trim |
-|---------|-------------|---------------|
-| `readLines()` | Lee todas las lineas del buffer | Si |
-| `readUnprocessedLines()` | Lee lineas no marcadas como procesadas | Si |
-| `readAllLines()` | Lee todas las lineas (si existe) | Si |
-| `removeProcessedLines()` | Lee para filtrar (si usa readStringUntil) | Verificar |
-
-**NOTA:** Hay que leer BUFFERModule.cpp de JAMR_4.5 durante la implementacion para identificar todas las ubicaciones exactas.
+**NOTA:** En `readUnprocessedLines()` y `removeProcessedLines()`, el `.trim()` debe ir inmediatamente despues de `readStringUntil()`, antes del `startsWith(PROCESSED_MARKER)`. El `\r` al final no afecta `startsWith`, pero el dato debe estar limpio en todo el flujo.
 
 ---
 
@@ -142,7 +141,7 @@ Basado en el patron de jarm_4.5_autoswich, las funciones a verificar son:
 | Archivo | Cambio | Lineas aprox |
 |---------|--------|--------------|
 | `src/FeatureFlags.h` | Agregar flag `ENABLE_FIX_V12_BUFFER_TRIM_CR` | +8 |
-| `src/data_buffer/BUFFERModule.cpp` | Agregar `.trim()` en 3-5 ubicaciones | +10 |
+| `src/data_buffer/BUFFERModule.cpp` | Agregar `.trim()` en 5 ubicaciones | +15 |
 | `src/version_info.h` | Actualizar version | +3 |
 
 ---
@@ -185,6 +184,7 @@ Basado en el patron de jarm_4.5_autoswich, las funciones a verificar son:
 | Fecha | Accion | Version |
 |-------|--------|---------|
 | 2026-02-16 | Documentacion inicial. Portado de jarm_4.5_autoswich FIX-V13 | 1.0 |
+| 2026-02-16 | Corregir tabla funciones (5 reales), alinear estado Aprobado, eliminar ambiguedad 3-5 | 1.1 |
 
 ---
 
